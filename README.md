@@ -4,6 +4,10 @@
 [![Sync Upstream](https://github.com/vermiliondevil-web/pure-3x-ui/actions/workflows/sync-upstream.yml/badge.svg)](https://github.com/vermiliondevil-web/pure-3x-ui/actions/workflows/sync-upstream.yml)
 [![Release](https://img.shields.io/github/v/release/vermiliondevil-web/pure-3x-ui?label=release)](https://github.com/vermiliondevil-web/pure-3x-ui/releases/latest)
 [![License](https://img.shields.io/github/license/vermiliondevil-web/pure-3x-ui)](LICENSE)
+[![Panel Version](https://img.shields.io/github/v/release/vermiliondevil-web/pure-3x-ui?label=panel&color=blue&logo=github)](https://github.com/vermiliondevil-web/pure-3x-ui/releases/latest)
+[![CDN](https://img.shields.io/badge/CDN-jsDelivr-orange?logo=cloudflare)](https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/)
+[![Cache](https://img.shields.io/badge/cache-purged%20on%20release-green?logo=githubactions)](https://github.com/vermiliondevil-web/pure-3x-ui/actions/workflows/release.yml)
+[![update.sh](https://img.shields.io/badge/update.sh-1648%20bytes-lightgrey)](https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh)
 
 > **Это форк.** Проект является производной работой от [3x-ui](https://github.com/MHSanaei/3x-ui) (автор — [MHSanaei](https://github.com/MHSanaei)) и распространяется под лицензией **AGPL-3.0**. Все изменения, внесённые в этот форк, публикуются под той же лицензией.
 
