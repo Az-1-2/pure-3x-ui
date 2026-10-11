@@ -1,0 +1,43 @@
+name: Update update.sh Badge
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  update-badge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compare sizes and set color
+        id: check
+        run: |
+          RAW_SIZE=$(curl -sL "https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/update.sh" | wc -c)
+          CDN_SIZE=$(curl -sL "https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh" | wc -c)
+
+          echo "GitHub raw size: $RAW_SIZE"
+          echo "jsDelivr size: $CDN_SIZE"
+
+          if [ "$RAW_SIZE" -eq "$CDN_SIZE" ]; then
+            COLOR="green"
+            MESSAGE="synced"
+          else
+            COLOR="red"
+            MESSAGE="stale"
+          fi
+
+          echo "color=$COLOR" >> $GITHUB_OUTPUT
+          echo "message=$MESSAGE" >> $GITHUB_OUTPUT
+
+      - name: Update Gist
+        uses: schneegans/dynamic-badges-action@v1.9.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: e8bc5a94d1f1c6d64911b342b51c05fe
+          filename: update-sh-status.json
+          label: update.sh
+          message: ${{ steps.check.outputs.message }}
+          color: ${{ steps.check.outputs.color }}
