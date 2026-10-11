@@ -64,6 +64,36 @@ rm -f  frontend/src/lib/sponsors.ts 2>/dev/null || true
 rm -f  frontend/src/test/sponsors.test.tsx 2>/dev/null || true
 rm -rf frontend/src/pages/sponsors/ 2>/dev/null || true
 
+# Заменяем sponsor.go на пустышку (убирает утечку sponsors.sanaei.dev)
+cat > internal/web/service/panel/sponsor.go << 'SPONSOR_EOF'
+package panel
+
+// Sponsor is a stub. The upstream sponsor feature is disabled in this fork.
+type Sponsor struct {
+	ID     string   `json:"id"`
+	Name   string   `json:"name"`
+	Enable *bool    `json:"enable,omitempty"`
+	Slots  []string `json:"slots"`
+}
+
+// SponsorList is a stub.
+type SponsorList struct {
+	Sponsors []Sponsor `json:"sponsors"`
+}
+
+// GetSponsors is a stub that returns an empty list without any network request.
+// This removes the hardcoded upstream call to sponsors.sanaei.dev.
+func (s *PanelService) GetSponsors() (*SponsorList, error) {
+	return &SponsorList{Sponsors: []Sponsor{}}, nil
+}
+
+// GetSponsorLogo is a stub that returns an empty image without any network request.
+func (s *PanelService) GetSponsorLogo(name string) ([]byte, string, error) {
+	return []byte{}, "image/png", nil
+}
+SPONSOR_EOF
+
+
 # ---------- 2. Правим AppSidebar.tsx ----------
 echo "[2/5] Правим AppSidebar.tsx..."
 ASB=frontend/src/layouts/AppSidebar.tsx
