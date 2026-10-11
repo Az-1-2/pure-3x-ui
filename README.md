@@ -29,7 +29,7 @@ curl -sL "https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/u
 
 # Кэш — jsDelivr:
 curl -sL "https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh" | wc -c
-
+---
 ## О проекте
 
 Это форк панели **3x-ui** от [MHSanaei](https://github.com/MHSanaei/3x-ui).
