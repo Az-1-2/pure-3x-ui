@@ -90,7 +90,7 @@ jobs:
           files: |
             x-ui-linux-amd64.tar.gz
             x-ui-linux-amd64.tar.gz.sha256
-            
+          
       - name: Purge jsDelivr cache
         uses: gacts/purge-jsdelivr-cache@v1
         with:
