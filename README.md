@@ -7,7 +7,6 @@
 [![Panel Version](https://img.shields.io/github/v/release/vermiliondevil-web/pure-3x-ui?label=panel&color=blue&logo=github)](https://github.com/vermiliondevil-web/pure-3x-ui/releases/latest)
 [![CDN](https://img.shields.io/badge/CDN-jsDelivr-orange?logo=cloudflare)](https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/)
 [![Cache](https://img.shields.io/badge/cache-purged%20on%20release-green?logo=githubactions)](https://github.com/vermiliondevil-web/pure-3x-ui/actions/workflows/release.yml)
-[![update.sh](https://img.shields.io/badge/update.sh-1648%20bytes-lightgrey)](https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh)
 
 > **Это форк.** Проект является производной работой от [3x-ui](https://github.com/MHSanaei/3x-ui) (автор — [MHSanaei](https://github.com/MHSanaei)) и распространяется под лицензией **AGPL-3.0**. Все изменения, внесённые в этот форк, публикуются под той же лицензией.
 
@@ -29,7 +28,40 @@ curl -sL "https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/u
 
 # Кэш — jsDelivr:
 curl -sL "https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh" | wc -c
+```
+
+**Что должно быть:**
+
+| Результат | Что это значит | Что делать |
+|---|---|---|
+| **Размеры совпадают** (например, `1648` и `1648`) | jsDelivr отдаёт **свежий** файл ✅ | Можно обновлять |
+| **Размеры разные** (например, `1648` и `361`) | jsDelivr отдаёт **старую версию** из кэша ⚠️ | Сбросить кэш — см. ниже |
+
+**Что делать, если размеры разные** — сбросить кэш jsDelivr:
+
+```bash
+curl -sL "https://purge.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh"
+sleep 30
+curl -sL "https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh" | wc -c
+```
+
+Повторяйте purge + проверку, пока размеры не совпадут. Обычно хватает 30–60 секунд.
+
+**Автоматизация:** в `release.yml` добавлен шаг **`Purge jsDelivr cache`** — он сбрасывает кэш для `update.sh` и `install.sh` **после каждого релиза**. Если вы обновляетесь **сразу после релиза** — кэш уже сброшен. Но если релиз был давно, а вы только сейчас обновляетесь — jsDelivr мог закэшировать файл заново, и проверка нужна.
+
+**Почему это важно:** если jsDelivr отдаёт старый `update.sh` (без `write_status`), панель не запишет `/etc/x-ui/update-status.json`, и UI покажет **«Не удалось подтвердить завершение обновления»** — даже если обновление прошло успешно. Проверка размера — самый быстрый способ убедиться, что всё в порядке.
+
+**Пример из жизни (v3.9.5 → v3.9.6):**
+
+- GitHub raw: `update.sh` = **1648** байт (свежий, с `write_status`).
+- jsDelivr: `update.sh` = **361** байт (старый, без `write_status`).
+- Результат: панель скачала старый `update.sh` → файл статуса не создался → UI показал «Не удалось подтвердить завершение обновления».
+- Решение: `purge` → через 30 секунд jsDelivr начал отдавать 1648 → обновление сработало корректно.
+
+Именно поэтому важно проверять размер **перед** обновлением.
+
 ---
+
 ## О проекте
 
 Это форк панели **3x-ui** от [MHSanaei](https://github.com/MHSanaei/3x-ui).
@@ -52,9 +84,10 @@ curl -sL "https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.
 - 🔄 `panel.go`, `install.sh`, `update.sh`, `README.md` — указывают на **этот** репозиторий
 - 🔄 Автоматизация через GitHub Actions:
   - **`Sync Upstream`** — автосинхронизация с upstream (раз в день, ~17 сек)
-  - **`Build and Release`** — автосборка релизов по тегу
+  - **`Build and Release`** — автосборка релизов по тегу + purge jsDelivr кэша
 - 🔄 **Авто-версия из тега**: `release.yml` сам подставляет номер тега в `internal/config/version`
 - 🔄 **Локали не трогаются** в `remove-ads.sh` — это уменьшает diff и упрощает merge
+- 🔄 **`sponsor.go` заменён на stub** — убирает утечку `sponsors.sanaei.dev` (см. раздел «Безопасность»)
 
 ### Не изменено
 
@@ -103,7 +136,7 @@ bash <(curl -Ls "https://github.com/vermiliondevil-web/pure-3x-ui/raw/main/insta
 bash <(curl -Ls https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/install.sh)
 
 # 3. Через jsDelivr с тегом (стабильный релиз)
-bash <(curl -Ls https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@v3.9.3/install.sh)
+bash <(curl -Ls https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@v3.9.7/install.sh)
 ```
 
 ### Что делает скрипт
@@ -147,9 +180,11 @@ x-ui uninstall    # Удалить
 
 | Версия в файле | Тег на GitHub | Кнопка |
 |---|---|---|
-| `3.9.2` | `v3.9.2` | ❌ неактивна |
-| `3.9.2` | `v3.9.3` | ✅ активна |
-| `3.9.3` | `v3.9.3` | ❌ неактивна |
+| `3.9.6` | `v3.9.6` | ❌ неактивна |
+| `3.9.6` | `v3.9.7` | ✅ активна |
+| `3.9.7` | `v3.9.7` | ❌ неактивна |
+
+**Перед обновлением** — проверьте размер `update.sh` (см. раздел «Перед обновлением панели» выше).
 
 ### Через `install.sh`
 
@@ -190,7 +225,7 @@ CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s" -o x-ui-main mai
 2. **Берёт локали и `update.sh` из upstream напрямую** — чтобы избежать конфликтов.
 3. Делает **коммит** этих файлов.
 4. Мержит остальное с `-X theirs`.
-5. Запускает `scripts/remove-ads.sh` — вырезает рекламу.
+5. Запускает `scripts/remove-ads.sh` — вырезает рекламу и заменяет `sponsor.go` на stub.
 6. Коммитит изменения и пушит в `main`.
 
 **Это значит:** когда Санаи выпускает обновление, реклама вырезается **автоматически**, а конфликтов **нет**.
@@ -200,12 +235,13 @@ CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s" -o x-ui-main mai
 Запускается по тегу `v*` или вручную:
 
 1. **`Set version from tag`** — извлекает версию из тега и записывает в `internal/config/version` и `scripts/remove-ads.sh`.
-2. Вырезает рекламу (`scripts/remove-ads.sh`).
+2. Вырезает рекламу (`scripts/remove-ads.sh`) — включая замену `sponsor.go` на stub.
 3. Собирает фронтенд (`npm run build`).
 4. Собирает Go-бинарник.
 5. Скачивает Xray core с XTLS.
 6. Упаковывает всё в `x-ui-linux-amd64.tar.gz` + `.sha256`.
 7. Публикует релиз.
+8. **`Purge jsDelivr cache`** — сбрасывает кэш для `update.sh` и `install.sh` на jsDelivr (автоматически после релиза).
 
 ### Как выпустить новую версию
 
@@ -214,13 +250,13 @@ CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s" -o x-ui-main mai
    ```bash
    cd /root/pure-3x-ui
    git pull
-   git tag v3.9.4
-   git push origin v3.9.4
+   git tag v3.9.8
+   git push origin v3.9.8
    ```
 
-   Или через GitHub: `Releases → Draft a new release → Choose a tag → v3.9.4 → Publish release`.
+   Или через GitHub: `Releases → Draft a new release → Choose a tag → v3.9.8 → Publish release`.
 
-2. **GitHub Actions** сам соберёт релиз `v3.9.4`.
+2. **GitHub Actions** сам соберёт релиз `v3.9.8` и сбросит кэш jsDelivr.
 
 3. **Кнопка «Обновить»** станет активной.
 
@@ -256,7 +292,7 @@ CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s" -o x-ui-main mai
 
 | Что проверяется | Как |
 |---|---|
-| Спонсорский код | Удаляется `scripts/remove-ads.sh` |
+| Спонсорский код | `scripts/remove-ads.sh` заменяет `sponsor.go` на stub |
 | Рекламные ссылки | Удаляются из `AppSidebar`, `LoginPage`, `routes` |
 | Телеметрия | Проверка через `strings` бинарника |
 | Скрытые домены | `grep` по коду на `http://` и `https://` |
@@ -294,7 +330,30 @@ tcpdump -i any -n 'not host localhost' -c 20
 
 **Оценка CVSS:** 7.2 (High).
 
-**Затронут ли этот форк?** **Нет.** Этот форк основан на **v3.9.3**, что значительно выше исправленной версии 3.3.1.
+**Затронут ли этот форк?** **Нет.** Этот форк основан на **v3.9.7**, что значительно выше исправленной версии 3.3.1.
+
+### Устранена утечка `sponsors.sanaei.dev`
+
+**Что было:** `internal/web/service/panel/sponsor.go` содержал жёстко прописанные URL:
+
+```
+https://sponsors.sanaei.dev/3X/sponsors.json
+https://sponsors.sanaei.dev/3X/logos/
+```
+
+При каждом открытии страницы логина панель отправляла запрос на `sponsors.sanaei.dev` — раскрывая **IP сервера** и **SNI** третьей стороне. Для операторов в странах с цензурой это позволяло DPI идентифицировать панель как 3x-ui.
+
+**Что сделано:**
+
+- `sponsor.go` заменён на **stub** (функции возвращают пустые значения, сетевых запросов нет).
+- `scripts/remove-ads.sh` **автоматически** заменяет `sponsor.go` на stub после каждого `Sync Upstream`.
+
+**Проверка:**
+
+```bash
+strings /usr/local/x-ui/x-ui | grep -c "sponsors.sanaei.dev"
+# Ожидаемо: 0
+```
 
 ### Другие меры безопасности (унаследованы)
 
