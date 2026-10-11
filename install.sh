@@ -9,6 +9,37 @@ plain='\033[0m'
 xui_folder="${XUI_MAIN_FOLDER:=/usr/local/x-ui}"
 xui_service="${XUI_SERVICE:=/etc/systemd/system}"
 
+# ---------- Update status tracking ----------
+UPDATE_STATUS_FILE="${XUI_UPDATE_STATUS_FILE:-/etc/x-ui/update-status.json}"
+UPDATE_RUN_ID="${XUI_UPDATE_RUN_ID:-}"
+UPDATE_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+_write_update_status() {
+    local status="$1"
+    local exit_code="${2:-0}"
+    local error_msg="${3:-}"
+    error_msg="${error_msg//\"/\\\"}"
+    local version
+    version=$(/usr/local/x-ui/x-ui -v 2>/dev/null || echo "unknown")
+    install -d -m 700 /etc/x-ui 2>/dev/null
+    umask 077
+    cat > "$UPDATE_STATUS_FILE" <<JSONEOF
+{"run_id":"${UPDATE_RUN_ID}","status":"${status}","exit_code":${exit_code},"error":"${error_msg}","version":"${version}","started_at":"${UPDATE_STARTED_AT}","finished_at":"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"}
+JSONEOF
+    chmod 600 "$UPDATE_STATUS_FILE" 2>/dev/null
+}
+
+# Записываем статус при любом выходе скрипта
+_install_exit_handler() {
+    local code=$?
+    if [[ "$code" -eq 0 ]]; then
+        _write_update_status "success" "0" ""
+    else
+        _write_update_status "failed" "$code" "install.sh exited with code ${code}"
+    fi
+}
+trap _install_exit_handler EXIT
+
 # check root
 [[ $EUID -ne 0 ]] && echo -e "${red}Fatal error: ${plain} Please run this script with root privilege \n " && exit 1
 
@@ -1092,7 +1123,7 @@ install_x-ui() {
         rm -rf "${custom_bin_backup}"
         custom_bin_backup=""
     fi
-    trap - EXIT INT TERM
+    trap _install_exit_handler EXIT
     rm -f bin/tuic-server bin/tuic-server- > /dev/null 2>&1 || true
     rm -rf bin/tuic > /dev/null 2>&1 || true
     mv -f "${xui_script_temp}" /usr/bin/x-ui
