@@ -90,3 +90,12 @@ jobs:
           files: |
             x-ui-linux-amd64.tar.gz
             x-ui-linux-amd64.tar.gz.sha256
+            
+      - name: Purge jsDelivr cache
+        uses: gacts/purge-jsdelivr-cache@v1
+        with:
+          url: |
+            https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh
+            https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/install.sh
+          attempts: 3
+        continue-on-error: true
