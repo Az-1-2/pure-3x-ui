@@ -7,8 +7,7 @@
 [![Panel Version](https://img.shields.io/github/v/release/vermiliondevil-web/pure-3x-ui?label=panel&color=blue&logo=github)](https://github.com/vermiliondevil-web/pure-3x-ui/releases/latest)
 [![CDN](https://img.shields.io/badge/CDN-jsDelivr-orange?logo=cloudflare)](https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/)
 [![Cache](https://img.shields.io/badge/cache-purged%20on%20release-green?logo=githubactions)](https://github.com/vermiliondevil-web/pure-3x-ui/actions/workflows/release.yml)
-[![update.sh](https://img.shields.io/badge/update.sh-jsDelivr-blue?logo=cloudflare)](https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh)
-
+[![update.sh](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/vermiliondevil-web/e8bc5a94d1f1c6d64911b342b51c05fe/raw/update-sh-status.json)](https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh)
 > **Это форк.** Проект является производной работой от [3x-ui](https://github.com/MHSanaei/3x-ui) (автор — [MHSanaei](https://github.com/MHSanaei)) и распространяется под лицензией **AGPL-3.0**. Все изменения, внесённые в этот форк, публикуются под той же лицензией.
 
 Чистая сборка [3x-ui](https://github.com/MHSanaei/3x-ui) без рекламы и донат-блоков.
