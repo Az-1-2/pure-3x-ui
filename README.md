@@ -17,6 +17,19 @@
 
 ---
 
+## ⚠️ Перед обновлением панели
+
+Файлы `update.sh` и `install.sh` раздаются через **jsDelivr** (`cdn.jsdelivr.net`). jsDelivr кэширует файлы **до 12–24 часов** — и это может привести к тому, что панель скачает **старую версию** вместо свежей.
+
+**Проверка перед обновлением** — сравните размер `update.sh`:
+
+```bash
+# Эталон (истина) — GitHub raw:
+curl -sL "https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/update.sh" | wc -c
+
+# Кэш — jsDelivr:
+curl -sL "https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh" | wc -c
+
 ## О проекте
 
 Это форк панели **3x-ui** от [MHSanaei](https://github.com/MHSanaei/3x-ui).
