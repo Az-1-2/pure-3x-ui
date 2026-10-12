@@ -27,9 +27,6 @@ jobs:
           VERSION="${TAG#v}"
           echo "Setting version to: $VERSION"
           echo -n "$VERSION" > internal/config/version
-          sed -i "s|echo -n \"[0-9.]*\"|echo -n \"$VERSION\"|" scripts/remove-ads.sh
-          echo "internal/config/version: $(cat internal/config/version)"
-          grep "echo -n" scripts/remove-ads.sh
 
       - name: Strip ads before build
         run: bash scripts/remove-ads.sh
@@ -90,12 +87,3 @@ jobs:
           files: |
             x-ui-linux-amd64.tar.gz
             x-ui-linux-amd64.tar.gz.sha256
-
-      - name: Purge jsDelivr cache
-        uses: gacts/purge-jsdelivr-cache@v1
-        with:
-          url: |
-            https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh
-            https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/install.sh
-          attempts: 3
-        continue-on-error: true
