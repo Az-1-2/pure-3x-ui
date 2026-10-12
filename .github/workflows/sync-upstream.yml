@@ -89,6 +89,19 @@ jobs:
           done
           git add -A
           git diff --cached --quiet || git commit -m "chore: keep our workflows (release.yml)" || true
+
+      - name: Remove upstream CI (fork strips sponsor code)
+        run: |
+          # Upstream добавил ci.yml, который требует наличия рекламного
+          # кода (sponsor.go с полями Until/Logo/Link, роут /sponsors в
+          # endpoints.ts, файл claude-pr-review.yml). Мы их намеренно
+          # удаляем, поэтому тесты upstream всегда будут падать.
+          rm -f .github/workflows/ci.yml
+          rm -f .github/workflows/claude-issue-analyst.yml
+          rm -rf .github/claude/
+          git add -A
+          git diff --cached --quiet || git commit -m "chore: remove upstream CI tests (fork strips sponsor code)"
+
           
       - name: Push changes
         run: git push origin main
