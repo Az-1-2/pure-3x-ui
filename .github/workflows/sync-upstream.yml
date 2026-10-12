@@ -38,20 +38,40 @@ jobs:
           # (это избегает конфликтов при merge)
           git checkout upstream/main -- internal/web/translation/ || true
           git checkout upstream/main -- update.sh || true
-          
+
           # ШАГ 1.5: Коммитим эти изменения, чтобы merge не ругался
           git add -A
           git diff --cached --quiet || git commit -m "chore: take locales and update.sh from upstream (pre-merge)"
 
+          # ШАГ 1.6: Удаляем файлы, которые вызывают modify/delete конфликт.
+          # В нашем форке они не нужны, а upstream их меняет -> конфликт.
+          # Удаляем ДО merge, чтобы -X theirs не спотыкался.
+          git rm -f .github/workflows/claude-pr-review.yml 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "chore: remove claude-pr-review.yml (pre-merge)" || true
+
           # ШАГ 2: Мержим остальные файлы с -X theirs
           # (при конфликте берётся версия upstream)
-          git merge upstream/main -X theirs --no-edit || {
-            echo "=== MERGE CONFLICT (unexpected) ==="
+          if ! git merge upstream/main -X theirs --no-edit; then
+            echo "=== MERGE CONFLICT - resolving ==="
             git status
-            git diff --name-only --diff-filter=U
-            git merge --abort
-            exit 1
-          }
+
+            # Разрешаем modify/delete конфликты в пользу "удалить"
+            for f in $(git diff --name-only --diff-filter=U); do
+              if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+                # Файл есть у нас -> берём upstream (theirs)
+                git checkout --theirs "$f" 2>/dev/null || git rm -f "$f" 2>/dev/null || true
+              else
+                # Файл удалён у нас, но есть в upstream -> удаляем
+                git rm -f "$f" 2>/dev/null || true
+              fi
+            done
+            git add -A
+            git commit --no-verify -m "chore: sync upstream (auto-resolve conflicts)" || true
+          fi
+
+          # Финальная страховка: удаляем claude-pr-review.yml после merge
+          git rm -f .github/workflows/claude-pr-review.yml 2>/dev/null || true
+          git diff --cached --quiet || git commit --no-verify -m "chore: remove claude-pr-review.yml (post-merge)" || true
 
       - name: Strip ads after upstream merge
         run: |
