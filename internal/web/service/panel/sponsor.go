@@ -14,7 +14,6 @@ type SponsorList struct {
 }
 
 // GetSponsors is a stub that returns an empty list without any network request.
-// This removes the hardcoded upstream call to sponsors.sanaei.dev.
 func (s *PanelService) GetSponsors() (*SponsorList, error) {
 	return &SponsorList{Sponsors: []Sponsor{}}, nil
 }
