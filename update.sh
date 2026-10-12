@@ -608,9 +608,7 @@ update_x-ui() {
         rm ${xui_folder}/bin/mtg-linux-$(arch) -f > /dev/null 2>&1
         echo -e "${green}Removing old xray version...${plain}"
         if [[ ! -f "${xui_folder}/bin/xray-linux-$(arch)" ]]; then
-            if [[ ! -f "${xui_folder}/bin/xray-linux-$(arch)" ]]; then
                 rm ${xui_folder}/bin/xray-linux-$(arch) -f > /dev/null 2>&1
-            fi
         fi
         echo -e "${green}Removing old README and LICENSE file...${plain}"
         rm ${xui_folder}/bin/README.md -f > /dev/null 2>&1
