@@ -120,29 +120,29 @@ is_port_in_use() {
 install_base() {
     case "${release}" in
         ubuntu | debian | armbian)
-            apt-get update && apt-get install -y -q cron curl tar tzdata socat ca-certificates openssl
+            apt-get update && apt-get install -y -q cron curl tar tzdata socat ca-certificates openssl unzip
             ;;
         fedora | amzn | virtuozzo | rhel | almalinux | rocky | ol)
-            dnf makecache -y && dnf install -y -q cronie curl tar tzdata socat ca-certificates openssl
+            dnf makecache -y && dnf install -y -q cronie curl tar tzdata socat ca-certificates openssl unzip
             ;;
         centos)
             if [[ "${VERSION_ID}" =~ ^7 ]]; then
-                yum makecache -y && yum install -y cronie curl tar tzdata socat ca-certificates openssl
+                yum makecache -y && yum install -y cronie curl tar tzdata socat ca-certificates openssl unzip
             else
-                dnf makecache -y && dnf install -y -q cronie curl tar tzdata socat ca-certificates openssl
+                dnf makecache -y && dnf install -y -q cronie curl tar tzdata socat ca-certificates openssl unzip
             fi
             ;;
         arch | manjaro | parch)
-            pacman -Sy --noconfirm cronie curl tar tzdata socat ca-certificates openssl
+            pacman -Sy --noconfirm cronie curl tar tzdata socat ca-certificates openssl unzip
             ;;
         opensuse-tumbleweed | opensuse-leap)
-            zypper refresh && zypper -q install -y cron curl tar timezone socat ca-certificates openssl
+            zypper refresh && zypper -q install -y cron curl tar timezone socat ca-certificates openssl unzip
             ;;
         alpine)
-            apk update && apk add dcron curl tar tzdata socat ca-certificates openssl
+            apk update && apk add dcron curl tar tzdata socat ca-certificates openssl unzip
             ;;
         *)
-            apt-get update && apt-get install -y -q cron curl tar tzdata socat ca-certificates openssl
+            apt-get update && apt-get install -y -q cron curl tar tzdata socat ca-certificates openssl unzip
             ;;
     esac
 }
@@ -1086,6 +1086,41 @@ install_x-ui() {
         rm -f x-ui-linux-$(arch).tar.gz "${xui_script_temp}"
         exit 1
     fi
+
+    # === СТРАХОВКА: проверяем наличие xray-linux-amd64 ===
+    # Если файл отсутствует (баг с восстановлением bin/), скачиваем его
+    local xray_arch_name="xray-linux-$(arch)"
+    if [[ ! -s "bin/${xray_arch_name}" ]]; then
+        echo -e "${yellow}WARNING: Xray binary (bin/${xray_arch_name}) missing after extraction.${plain}"
+        echo -e "${yellow}Downloading Xray core from official GitHub releases...${plain}"
+
+        local xray_download_url=""
+        case "$(arch)" in
+            amd64) xray_download_url="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip" ;;
+            arm64) xray_download_url="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-arm64-v8a.zip" ;;
+            armv7) xray_download_url="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-arm32-v7a.zip" ;;
+            *) echo -e "${red}Unsupported architecture for auto-download: $(arch)${plain}"; exit 1 ;;
+        esac
+
+        curl -fLR --retry 3 --connect-timeout 15 --max-time 120 -o /tmp/xray.zip "${xray_download_url}" || {
+            echo -e "${red}ERROR: Failed to download Xray core. Please check your network.${plain}"
+            exit 1
+        }
+
+        unzip -o /tmp/xray.zip -d /tmp/xray-tmp/ > /dev/null 2>&1 || {
+            echo -e "${red}ERROR: Failed to unzip Xray core.${plain}"
+            rm -rf /tmp/xray.zip /tmp/xray-tmp/
+            exit 1
+        }
+
+        mv /tmp/xray-tmp/xray "bin/${xray_arch_name}"
+        chmod +x "bin/${xray_arch_name}"
+        rm -rf /tmp/xray.zip /tmp/xray-tmp/
+
+        echo -e "${green}Xray core downloaded and placed at bin/${xray_arch_name}${plain}"
+    fi
+    # === КОНЕЦ СТРАХОВКИ ===
+
     rm -f x-ui-linux-$(arch).tar.gz
     cd x-ui || exit 1
     if [[ $? -ne 0 || ! -s x-ui ]]; then
