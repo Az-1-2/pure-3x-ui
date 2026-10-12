@@ -536,8 +536,8 @@ update_x-ui() {
     fi
 
     echo -e "${green}Installing new x-ui version...${plain}"
-    if [[ -f "bin/xray-linux-$(arch)" ]]; then
-        cp "bin/xray-linux-$(arch)" "/tmp/xray-linux-$(arch).saved"
+    if [[ -f "${xui_folder}/bin/xray-linux-$(arch)" ]]; then
+        cp "${xui_folder}/bin/xray-linux-$(arch)" "/tmp/xray-linux-$(arch).saved"
     fi
     tar zxvf x-ui-linux-$(arch).tar.gz > /dev/null 2>&1
     if [[ $? -ne 0 ]]; then
@@ -545,8 +545,8 @@ update_x-ui() {
         _fail "ERROR: Failed to extract the x-ui release archive -- the previous installation has already been removed, so the panel will not start until this is fixed; try running the update again"
     fi
     if [[ -f "/tmp/xray-linux-$(arch).saved" ]]; then
-        cp "/tmp/xray-linux-$(arch).saved" "bin/xray-linux-$(arch)"
-        chmod +x "bin/xray-linux-$(arch)"
+        cp "/tmp/xray-linux-$(arch).saved" "${xui_folder}/bin/xray-linux-$(arch)"
+        chmod +x "${xui_folder}/bin/xray-linux-$(arch)"
         rm -f "/tmp/xray-linux-$(arch).saved"
     fi
     rm x-ui-linux-$(arch).tar.gz -f > /dev/null 2>&1

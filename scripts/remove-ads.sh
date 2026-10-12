@@ -207,13 +207,13 @@ for line in lines:
     if 'tar zxvf x-ui-linux-$(arch).tar.gz' in line and not patched:
         indent = line[:len(line) - len(line.lstrip())]
         out.append(f'{indent}# Сохраняем текущее ядро (чтобы архив не перезаписал выбранное)\n')
-        out.append(f'{indent}if [[ -f "bin/xray-linux-$(arch)" ]]; then\n')
-        out.append(f'{indent}    cp "bin/xray-linux-$(arch)" "/tmp/xray-linux-$(arch).saved"\n')
+        out.append(f'{indent}if [[ -f "${{xui_folder}}/bin/xray-linux-$(arch)" ]]; then\n')
+        out.append(f'{indent}    cp "${{xui_folder}}/bin/xray-linux-$(arch)" "/tmp/xray-linux-$(arch).saved"\n')
         out.append(f'{indent}fi\n')
         out.append(line)
         out.append(f'{indent}if [[ -f "/tmp/xray-linux-$(arch).saved" ]]; then\n')
-        out.append(f'{indent}    cp "/tmp/xray-linux-$(arch).saved" "bin/xray-linux-$(arch)"\n')
-        out.append(f'{indent}    chmod +x "bin/xray-linux-$(arch)"\n')
+        out.append(f'{indent}    cp "/tmp/xray-linux-$(arch).saved" "${{xui_folder}}/bin/xray-linux-$(arch)"\n')
+        out.append(f'{indent}    chmod +x "${{xui_folder}}/bin/xray-linux-$(arch)"\n')
         out.append(f'{indent}    rm -f "/tmp/xray-linux-$(arch).saved"\n')
         out.append(f'{indent}fi\n')
         patched = True
