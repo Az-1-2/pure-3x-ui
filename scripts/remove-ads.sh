@@ -14,7 +14,7 @@ FAIL=0
 echo "==> remove-ads.sh: старт в $REPO_ROOT"
 
 # ---------- 0. Брендирование панели: обновления с нашего репозитория ----------
-echo "[0/7] Брендируем панель (ссылки на наш репозиторий)..."
+echo "[0/8] Брендируем панель (ссылки на наш репозиторий)..."
 
 # 0.1. Заменяем MHSanaei/3x-ui → vermiliondevil-web/pure-3x-ui во ВСЕХ файлах.
 for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go README.md; do
@@ -37,7 +37,7 @@ sed -i '/# jsDelivr не отдаёт >20 МБ/d' install.sh 2>/dev/null || true
 # Версию НЕ трогаем — она устанавливается через release.yml (Set version from tag).
 
 # ---------- 1. Удаляем файлы рекламы ----------
-echo "[1/7] Удаляем файлы рекламы..."
+echo "[1/8] Удаляем файлы рекламы..."
 rm -rf frontend/src/components/sponsor/ 2>/dev/null || true
 rm -f  frontend/src/api/queries/useSponsorsQuery.ts 2>/dev/null || true
 rm -f  frontend/src/lib/sponsors.ts 2>/dev/null || true
@@ -73,7 +73,7 @@ func (s *PanelService) GetSponsorLogo(name string) ([]byte, string, error) {
 SPONSOR_EOF
 
 # ---------- 2. Правим AppSidebar.tsx ----------
-echo "[2/7] Правим AppSidebar.tsx..."
+echo "[2/8] Правим AppSidebar.tsx..."
 ASB=frontend/src/layouts/AppSidebar.tsx
 if [[ -f "$ASB" ]]; then
   sed -i '/^  CrownOutlined,$/d' "$ASB" 2>/dev/null || true
@@ -108,7 +108,7 @@ PYEOF
 fi
 
 # ---------- 3. Правим LoginPage.tsx ----------
-echo "[3/7] Правим LoginPage.tsx..."
+echo "[3/8] Правим LoginPage.tsx..."
 LGP=frontend/src/pages/login/LoginPage.tsx
 if [[ -f "$LGP" ]]; then
   sed -i '/<SponsorSlot /d' "$LGP" 2>/dev/null || true
@@ -116,7 +116,7 @@ if [[ -f "$LGP" ]]; then
 fi
 
 # ---------- 4. Правим routes, usePageTitle, CommandPalette, endpoints ----------
-echo "[4/7] Правим routes.tsx, usePageTitle.ts, CommandPalette.tsx, endpoints.ts..."
+echo "[4/8] Правим routes.tsx, usePageTitle.ts, CommandPalette.tsx, endpoints.ts..."
 
 # 4.1 routes.tsx
 RTS=frontend/src/routes.tsx
@@ -163,17 +163,13 @@ PYEOF
 fi
 
 # ---------- 5. Локали НЕ трогаем ----------
-echo "[5/7] Локали не трогаем (реклама в UI удалена через фронтенд)"
+echo "[5/8] Локали не трогаем (реклама в UI удалена через фронтенд)"
 
 # ---------- 6. Проверка синтаксиса ----------
 echo "==> Проверка TypeScript пропущена (см. release.yml)"
 
 # ---------- 7. Патч update.sh: НЕ удалять существующее ядро ----------
-# update.sh (версия Санаи) удаляет bin/xray-linux-* перед распаковкой архива,
-# из-за чего выбранное пользователем ядро затирается. Оборачиваем удаление
-# в проверку: если ядро уже есть — не трогаем. Так выбранная в UI версия
-# Xray сохраняется после обновления панели.
-echo "[7/7] Патчим update.sh: сохраняем выбранное ядро Xray..."
+echo "[7/8] Патчим update.sh: не удалять существующее ядро Xray..."
 if [[ -f "update.sh" ]]; then
   python3 - <<'PYEOF'
 import re
@@ -192,6 +188,46 @@ if count > 0:
 else:
     print("SKIP: паттерн не найден (возможно, уже пропатчен)")
 PYEOF
+fi
+
+# ---------- 8. Патч update.sh: сохранить выбранное ядро при распаковке ----------
+echo "[8/8] Патчим update.sh: сохраняем ядро при распаковке архива..."
+if [[ -f "update.sh" ]]; then
+  if grep -q 'xray-linux-\$(arch)\.saved' update.sh; then
+    echo "SKIP: update.sh уже пропатчен (сохранение ядра при распаковке)"
+  else
+    python3 - <<'PYEOF'
+p = 'update.sh'
+with open(p, encoding='utf-8') as f:
+    lines = f.readlines()
+
+out = []
+patched = False
+for line in lines:
+    if 'tar zxvf x-ui-linux-$(arch).tar.gz' in line and not patched:
+        indent = line[:len(line) - len(line.lstrip())]
+        out.append(f'{indent}# Сохраняем текущее ядро (чтобы архив не перезаписал выбранное)\n')
+        out.append(f'{indent}if [[ -f "bin/xray-linux-$(arch)" ]]; then\n')
+        out.append(f'{indent}    cp "bin/xray-linux-$(arch)" "/tmp/xray-linux-$(arch).saved"\n')
+        out.append(f'{indent}fi\n')
+        out.append(line)
+        out.append(f'{indent}if [[ -f "/tmp/xray-linux-$(arch).saved" ]]; then\n')
+        out.append(f'{indent}    cp "/tmp/xray-linux-$(arch).saved" "bin/xray-linux-$(arch)"\n')
+        out.append(f'{indent}    chmod +x "bin/xray-linux-$(arch)"\n')
+        out.append(f'{indent}    rm -f "/tmp/xray-linux-$(arch).saved"\n')
+        out.append(f'{indent}fi\n')
+        patched = True
+    else:
+        out.append(line)
+
+if patched:
+    with open(p, 'w', encoding='utf-8') as f:
+        f.writelines(out)
+    print("OK: update.sh пропатчен — ядро сохраняется при распаковке")
+else:
+    print("WARN: строка tar zxvf не найдена")
+PYEOF
+  fi
 fi
 
 echo ""
