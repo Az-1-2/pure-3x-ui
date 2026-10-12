@@ -78,6 +78,17 @@ jobs:
           bash scripts/remove-ads.sh
           git add -A
           git diff --cached --quiet || git commit -m "chore: auto strip ads after upstream merge"
-
+          
+      - name: Restore our workflows
+        run: |
+          # Не позволяем upstream перезаписывать наши workflows.
+          # release.yml содержит x-ui-main и purge jsDelivr cache —
+          # upstream-версия с xui-release ломает сборку.
+          for f in .github/workflows/release.yml; do
+            git checkout origin/main -- "$f" 2>/dev/null || true
+          done
+          git add -A
+          git diff --cached --quiet || git commit -m "chore: keep our workflows (release.yml)" || true
+          
       - name: Push changes
         run: git push origin main
