@@ -648,4 +648,75 @@ update_x-ui() {
                 arch | manjaro | parch)
                     if [ -f "x-ui.service.arch" ]; then
                         echo -e "${green}Installing arch-like systemd unit...${plain}"
-                        if _install_xui_service
+                        if _install_xui_service_unit "x-ui.service.arch" "false"; then
+                            service_installed=true
+                        fi
+                    fi
+                    ;;
+                *)
+                    if [ -f "x-ui.service.rhel" ]; then
+                        echo -e "${green}Installing rhel-like systemd unit...${plain}"
+                        if _install_xui_service_unit "x-ui.service.rhel" "false"; then
+                            service_installed=true
+                        fi
+                    fi
+                    ;;
+            esac
+
+            if [ "$service_installed" = false ]; then
+                echo -e "${yellow}Service files not found in tar.gz, downloading from GitHub...${plain}"
+                case "${release}" in
+                    ubuntu | debian | armbian)
+                        service_unit_url="https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/${script_ref}/x-ui.service.debian"
+                        ;;
+                    arch | manjaro | parch)
+                        service_unit_url="https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/${script_ref}/x-ui.service.arch"
+                        ;;
+                    *)
+                        service_unit_url="https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/${script_ref}/x-ui.service.rhel"
+                        ;;
+                esac
+
+                if ! _install_xui_service_unit "$service_unit_url" "true"; then
+                    echo -e "${red}Failed to install x-ui.service from GitHub (${script_ref}) -- the release tarball did not ship one either${plain}"
+                    exit 1
+                fi
+            fi
+        fi
+        chown root:root ${xui_service}/x-ui.service > /dev/null 2>&1
+        chmod 644 ${xui_service}/x-ui.service > /dev/null 2>&1
+        systemctl daemon-reload > /dev/null 2>&1
+        systemctl enable x-ui > /dev/null 2>&1
+        systemctl start x-ui > /dev/null 2>&1
+    fi
+
+    config_after_update
+
+    setup_fail2ban
+
+    echo -e "${green}x-ui ${tag_version}${plain} updating finished, it is running now..."
+    echo -e ""
+    echo -e "┌───────────────────────────────────────────────────────┐
+│  ${blue}x-ui control menu usages (subcommands):${plain}              │
+│                                                       │
+│  ${blue}x-ui${plain}              - Admin Management Script          │
+│  ${blue}x-ui start${plain}        - Start                            │
+│  ${blue}x-ui stop${plain}         - Stop                             │
+│  ${blue}x-ui restart${plain}      - Restart                          │
+│  ${blue}x-ui status${plain}       - Current Status                   │
+│  ${blue}x-ui settings${plain}     - Current Settings                 │
+│  ${blue}x-ui enable${plain}       - Enable Autostart on OS Startup   │
+│  ${blue}x-ui disable${plain}      - Disable Autostart on OS Startup  │
+│  ${blue}x-ui log${plain}          - Check logs                       │
+│  ${blue}x-ui banlog${plain}       - Check Fail2ban ban logs          │
+│  ${blue}x-ui update${plain}       - Update                           │
+│  ${blue}x-ui legacy${plain}       - Legacy version                   │
+│  ${blue}x-ui install${plain}      - Install                          │
+│  ${blue}x-ui uninstall${plain}    - Uninstall                        │
+└───────────────────────────────────────────────────────┘"
+}
+
+echo -e "${green}Running...${plain}"
+require_writable_update_paths
+install_base
+update_x-ui $1
