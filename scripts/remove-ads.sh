@@ -15,34 +15,26 @@ echo "==> remove-ads.sh: старт в $REPO_ROOT"
 
 # ---------- 0. Брендирование панели: обновления с нашего репозитория ----------
 echo "[0/5] Брендируем панель (ссылки на наш репозиторий)..."
-# Обход блокировки ТСПУ: заменяем raw.githubusercontent на jsDelivr
+
+# 0.1. Заменяем MHSanaei/3x-ui → vermiliondevil-web/pure-3x-ui во ВСЕХ файлах.
+# ВАЖНО: update.sh Санаи (831 строка) содержит 8+ URL на MHSanaei —
+# без этой замены панель скачивает install.sh и архив с upstream Санаи,
+# а не с нашего форка.
+for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go README.md; do
+  if [[ -f "$f" ]]; then
+    sed -i 's|MHSanaei/3x-ui|vermiliondevil-web/pure-3x-ui|g' "$f" 2>/dev/null || true
+  fi
+done
+
+# 0.2. Обход блокировки ТСПУ: заменяем raw.githubusercontent на jsDelivr
 for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go README.md; do
   if [[ -f "$f" ]]; then
     sed -i 's|https://raw\.githubusercontent\.com/vermiliondevil-web/pure-3x-ui/|https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@|g' "$f" 2>/dev/null || true
   fi
 done
 
-# Заменяем MHSanaei/3x-ui → vermiliondevil-web/pure-3x-ui во ВСЕХ упоминаниях
-for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go README.md; do
-  if [[ -f "$f" ]]; then
-    # GitHub repos (api.github.com, github.com, raw.githubusercontent.com)
-    sed -i 's|MHSanaei/3x-ui|vermiliondevil-web/pure-3x-ui|g' "$f" 2>/dev/null || true
-    # Просто MHSanaei (если осталось где-то)
-    sed -i 's|github.com/MHSanaei/|github.com/vermiliondevil-web/|g' "$f" 2>/dev/null || true
-    sed -i 's|raw.githubusercontent.com/MHSanaei/|raw.githubusercontent.com/vermiliondevil-web/|g' "$f" 2>/dev/null || true
-    sed -i 's|api.github.com/repos/MHSanaei/|api.github.com/repos/vermiliondevil-web/|g' "$f" 2>/dev/null || true
-  fi
-done
-
 # Восстанавливаем fallback для dev-архива (jsDelivr не отдаёт >20 МБ)
 sed -i 's|https://cdn\.jsdelivr\.net/gh/vermiliondevil-web/pure-3x-ui@main/x-ui-linux-\$(arch)\.tar\.gz|https://github.com/vermiliondevil-web/pure-3x-ui/raw/main/x-ui-linux-$(arch).tar.gz|g' install.sh 2>/dev/null || true
-
-# 0.1. panel.go — ссылки на GitHub API и raw
-PANEL_GO=internal/web/service/panel/panel.go
-if [[ -f "$PANEL_GO" ]]; then
-  sed -i 's|api.github.com/repos/MHSanaei/3x-ui|api.github.com/repos/vermiliondevil-web/pure-3x-ui|g' "$PANEL_GO" 2>/dev/null || true
-  sed -i 's|raw.githubusercontent.com/MHSanaei/3x-ui|raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui|g' "$PANEL_GO" 2>/dev/null || true
-fi
 
 # Брендирование версии: устанавливаем нашу версию (совпадает с последним тегом)
 VERSION_FILE=internal/config/version
@@ -76,7 +68,6 @@ type SponsorList struct {
 }
 
 // GetSponsors is a stub that returns an empty list without any network request.
-// This removes the hardcoded upstream call to sponsors.sanaei.dev.
 func (s *PanelService) GetSponsors() (*SponsorList, error) {
 	return &SponsorList{Sponsors: []Sponsor{}}, nil
 }
@@ -86,7 +77,6 @@ func (s *PanelService) GetSponsorLogo(name string) ([]byte, string, error) {
 	return []byte{}, "image/png", nil
 }
 SPONSOR_EOF
-
 
 # ---------- 2. Правим AppSidebar.tsx ----------
 echo "[2/5] Правим AppSidebar.tsx..."
@@ -118,12 +108,11 @@ PYEOF
   # Удаляем | 'sponsors' из union-типа
   sed -i "/^  | 'sponsors'$/d" "$ASB" 2>/dev/null || true
 
-  # Удаляем функцию DonateButton — от "function DonateButton" до следующей "}"
+  # Удаляем функцию DonateButton
   python3 - "$ASB" <<'PYEOF'
 import re, sys
 p = sys.argv[1]
 s = open(p, encoding='utf-8').read()
-# Удаляем function DonateButton(...) { ... } (простой случай без вложенных })
 s = re.sub(r"function DonateButton\([^)]*\)\s*\{[^{}]*\}\s*\n?", "", s, flags=re.DOTALL)
 open(p, 'w', encoding='utf-8').write(s)
 PYEOF
@@ -151,9 +140,7 @@ if [[ -f "$RTS" ]]; then
 import re, sys
 p = sys.argv[1]
 s = open(p, encoding='utf-8').read()
-# Удаляем строку с маршрутом sponsors
 s = re.sub(r"^\s*\{\s*path:\s*'sponsors'[^\n]*\}\s*,?\s*\n", "", s, flags=re.MULTILINE)
-# Удаляем импорт SponsorsPage (если остался)
 s = re.sub(r"^import[^\n]*SponsorsPage[^\n]*\n", "", s, flags=re.MULTILINE)
 open(p, 'w', encoding='utf-8').write(s)
 PYEOF
@@ -172,7 +159,6 @@ if [[ -f "$CP" ]]; then
 import re, sys
 p = sys.argv[1]
 s = open(p, encoding='utf-8').read()
-# Удаляем блок { ... path: '/sponsors' ... },
 s = re.sub(r"\{\s*[^{}]*?path:\s*'/sponsors'[^{}]*?\}\s*,?\s*\n", "", s, flags=re.DOTALL)
 open(p, 'w', encoding='utf-8').write(s)
 PYEOF
@@ -186,18 +172,15 @@ if [[ -f "$EP" ]]; then
 import re, sys
 p = sys.argv[1]
 s = open(p, encoding='utf-8').read()
-# Удаляем блок { method: '...', path: '/sponsors', ... },
 s = re.sub(r"\{\s*[^{}]*?path:\s*'/sponsors'[^{}]*?\}\s*,?\s*\n", "", s, flags=re.DOTALL)
 open(p, 'w', encoding='utf-8').write(s)
 PYEOF
 fi
 
 # ---------- 5. Локали НЕ трогаем ----------
-# Ключи donate/sponsors остаются, но UI их не читает (компоненты удалены).
-# Это уменьшает diff и упрощает merge с upstream.
 echo "[5/5] Локали не трогаем (реклама в UI удалена через фронтенд)"
+
 # ---------- 6. Проверка синтаксиса ----------
-# Пропущено — долго на слабом VPS. Полноценная проверка в GitHub Actions (release.yml).
 echo "==> Проверка TypeScript пропущена (см. release.yml)"
 echo ""
 echo "==> Готово. Проверьте:"
