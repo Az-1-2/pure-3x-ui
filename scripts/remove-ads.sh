@@ -26,21 +26,24 @@ for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go README
   fi
 done
 
-# 0.2. Обход блокировки ТСПУ: заменяем raw.githubusercontent на jsDelivr
+# 0.2. Заменяем jsDelivr → raw.githubusercontent.com
+# VPS не в России — ТСПУ не блокирует raw, обход через CDN не нужен.
+# jsDelivr кэшировал @main до 12 часов, из-за чего панель скачивала
+# старый update.sh (с MHSanaei) и обновлялась на версию Санаи.
 for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go README.md; do
   if [[ -f "$f" ]]; then
-    sed -i 's|https://raw\.githubusercontent\.com/vermiliondevil-web/pure-3x-ui/|https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@|g' "$f" 2>/dev/null || true
+    sed -i 's|https://cdn\.jsdelivr\.net/gh/vermiliondevil-web/pure-3x-ui@main/|https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/|g' "$f" 2>/dev/null || true
   fi
 done
 
-# Восстанавливаем fallback для dev-архива (jsDelivr не отдаёт >20 МБ)
-sed -i 's|https://cdn\.jsdelivr\.net/gh/vermiliondevil-web/pure-3x-ui@main/x-ui-linux-\$(arch)\.tar\.gz|https://github.com/vermiliondevil-web/pure-3x-ui/raw/main/x-ui-linux-$(arch).tar.gz|g' install.sh 2>/dev/null || true
+# Fallback для dev-архива больше не нужен — все URL идут через raw.
+# Удаляем блок, если он остался от старой версии скрипта.
+sed -i '/# Восстанавливаем fallback для dev-архива/d' install.sh 2>/dev/null || true
+sed -i '/# jsDelivr не отдаёт >20 МБ/d' install.sh 2>/dev/null || true
 
-# Брендирование версии: устанавливаем нашу версию (совпадает с последним тегом)
-VERSION_FILE=internal/config/version
-if [[ -f "$VERSION_FILE" ]]; then
-  echo -n "3.9.2" > "$VERSION_FILE"
-fi
+# Версию НЕ трогаем — она устанавливается через release.yml (Set version from tag).
+# remove-ads.sh вызывается ДО сборки, и если он перезапишет version,
+# панель покажет неправильный номер.
 
 # ---------- 1. Удаляем файлы рекламы ----------
 echo "[1/5] Удаляем файлы рекламы..."
