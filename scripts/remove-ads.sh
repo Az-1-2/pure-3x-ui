@@ -22,6 +22,18 @@ for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go README
   fi
 done
 
+# Заменяем MHSanaei/3x-ui → vermiliondevil-web/pure-3x-ui во ВСЕХ упоминаниях
+for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go README.md; do
+  if [[ -f "$f" ]]; then
+    # GitHub repos (api.github.com, github.com, raw.githubusercontent.com)
+    sed -i 's|MHSanaei/3x-ui|vermiliondevil-web/pure-3x-ui|g' "$f" 2>/dev/null || true
+    # Просто MHSanaei (если осталось где-то)
+    sed -i 's|github.com/MHSanaei/|github.com/vermiliondevil-web/|g' "$f" 2>/dev/null || true
+    sed -i 's|raw.githubusercontent.com/MHSanaei/|raw.githubusercontent.com/vermiliondevil-web/|g' "$f" 2>/dev/null || true
+    sed -i 's|api.github.com/repos/MHSanaei/|api.github.com/repos/vermiliondevil-web/|g' "$f" 2>/dev/null || true
+  fi
+done
+
 # Восстанавливаем fallback для dev-архива (jsDelivr не отдаёт >20 МБ)
 sed -i 's|https://cdn\.jsdelivr\.net/gh/vermiliondevil-web/pure-3x-ui@main/x-ui-linux-\$(arch)\.tar\.gz|https://github.com/vermiliondevil-web/pure-3x-ui/raw/main/x-ui-linux-$(arch).tar.gz|g' install.sh 2>/dev/null || true
 
