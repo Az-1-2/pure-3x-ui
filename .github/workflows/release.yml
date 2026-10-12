@@ -64,9 +64,12 @@ jobs:
         run: |
           mkdir -p pkg/x-ui/bin
           wget -q -O /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
-          unzip -q /tmp/xray.zip -d pkg/x-ui/bin/
+          unzip -q /tmp/xray.zip -d /tmp/xray-extract/
           rm /tmp/xray.zip
-          chmod +x pkg/x-ui/bin/*
+          # Переименовываем xray → xray-linux-amd64
+          # Без этого в архиве лежит bin/xray, а install.sh/update.sh ждут bin/xray-linux-amd64
+          mv /tmp/xray-extract/xray pkg/x-ui/bin/xray-linux-amd64
+          chmod +x pkg/x-ui/bin/xray-linux-amd64
 
       - name: Prepare package
         run: |
