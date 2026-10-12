@@ -1088,7 +1088,8 @@ install_x-ui() {
     fi
 
     # === СТРАХОВКА: проверяем наличие xray-linux-amd64 ===
-    # Если файл отсутствует (баг с восстановлением bin/), скачиваем его
+    # ВАЖНО: bin/ может быть перемещена в custom_bin_backup выше, поэтому
+    # создаём её заново перед скачиванием Xray.
     local xray_arch_name="xray-linux-$(arch)"
     if [[ ! -s "bin/${xray_arch_name}" ]]; then
         echo -e "${yellow}WARNING: Xray binary (bin/${xray_arch_name}) missing after extraction.${plain}"
@@ -1113,6 +1114,8 @@ install_x-ui() {
             exit 1
         }
 
+        # Создаём bin/ заново (могла быть перемещена в custom_bin_backup)
+        mkdir -p bin
         mv /tmp/xray-tmp/xray "bin/${xray_arch_name}"
         chmod +x "bin/${xray_arch_name}"
         rm -rf /tmp/xray.zip /tmp/xray-tmp/
