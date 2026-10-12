@@ -171,7 +171,10 @@ echo "==> Проверка TypeScript пропущена (см. release.yml)"
 # ---------- 7. Патч update.sh: НЕ удалять существующее ядро ----------
 echo "[7/8] Патчим update.sh: не удалять существующее ядро Xray..."
 if [[ -f "update.sh" ]]; then
-  python3 - <<'PYEOF'
+  if grep -q 'if \[\[ ! -f.*xray-linux' update.sh; then
+    echo "SKIP: update.sh уже пропатчен (не удалять ядро)"
+  else
+    python3 - <<'PYEOF'
 import re
 p = 'update.sh'
 s = open(p, encoding='utf-8').read()
@@ -188,6 +191,7 @@ if count > 0:
 else:
     print("SKIP: паттерн не найден (возможно, уже пропатчен)")
 PYEOF
+  fi
 fi
 
 # ---------- 8. Патч update.sh: сохранить выбранное ядро при распаковке ----------
