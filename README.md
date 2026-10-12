@@ -58,7 +58,7 @@ https://github.com/vermiliondevil-web/pure-3x-ui/actions/workflows/update-sh-bad
 
 ```bash
 # Эталон (истина) — GitHub raw:
-curl -sL "https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/update.sh" | wc -c
+curl -sL "https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh" | wc -c
 
 # Кэш — jsDelivr:
 curl -sL "https://cdn.jsdelivr.net/gh/vermiliondevil-web/pure-3x-ui@main/update.sh" | wc -c
