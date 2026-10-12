@@ -1,4 +1,7 @@
-
-# При слиянии с upstream всегда оставлять наши версии этих файлов
+# README.md — всегда наш. Upstream его меняет часто (бейджи, фичи),
+# а у нас свой русский README. При merge -X theirs upstream-версия
+# затирала бы его — поэтому merge=ours.
 README.md merge=ours
-install.sh merge=ours
+
+# docs/ — наша документация, upstream её не знает
+docs/ merge=ours
