@@ -171,12 +171,10 @@ config_after_update() {
     ${xui_folder}/x-ui setting -show true
     ${xui_folder}/x-ui migrate
 
-    # Properly detect empty cert by checking if cert: line exists and has content after it
     local existing_cert=$(${xui_folder}/x-ui setting -getCert true 2> /dev/null | grep 'cert:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
     local existing_port=$(${xui_folder}/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
     local existing_webBasePath=$(${xui_folder}/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}' | sed 's#^/##')
 
-    # Get server IP
     local URL_lists=(
         "https://api4.ipify.org"
         "https://ipv4.icanhazip.com"
@@ -196,13 +194,11 @@ config_after_update() {
         fi
     done
 
-    # Only used to print the access URL; never prompt, the web updater has no TTY.
     if [[ -z "$server_ip" ]]; then
         server_ip=$(hostname -I 2> /dev/null | awk '{print $1}')
         server_ip="${server_ip:-<server-ip>}"
     fi
 
-    # Handle missing/short webBasePath
     if [[ ${#existing_webBasePath} -lt 4 ]]; then
         echo -e "${yellow}WebBasePath is missing or too short. Generating a new one...${plain}"
         local config_webBasePath=$(gen_random_string 18)
@@ -212,8 +208,6 @@ config_after_update() {
         echo -e "${green}New WebBasePath: ${config_webBasePath}${plain}"
     fi
 
-    # An update only updates the panel: TLS stays exactly as configured. Set it up
-    # explicitly from the x-ui menu (SSL Certificate Management).
     local access_scheme="http" access_host="${server_ip}"
     if [[ -n "$existing_cert" ]]; then
         access_scheme="https"
@@ -236,13 +230,6 @@ config_after_update() {
     fi
 }
 
-# setup_fail2ban auto-installs and configures fail2ban for the IP Limit feature
-# by invoking the freshly downloaded x-ui CLI. IP Limit is load-bearing on
-# fail2ban (without it the panel disables the limitIp field and zeroes existing
-# limits), so updating an older install should make it work without a manual
-# trip through the IP Limit menu. Non-fatal: a fail2ban failure must never abort
-# the update. XUI_ENABLE_FAIL2BAN is honored (load_xui_env exports it from the
-# persisted env file, so a deliberate opt-out survives updates).
 setup_fail2ban() {
     if [[ -n "${XUI_ENABLE_FAIL2BAN+x}" && "${XUI_ENABLE_FAIL2BAN}" != "true" ]]; then
         echo -e "${yellow}XUI_ENABLE_FAIL2BAN=${XUI_ENABLE_FAIL2BAN}, skipping Fail2ban auto-setup.${plain}"
@@ -254,8 +241,6 @@ setup_fail2ban() {
         return 0
     fi
 
-    # Scripts older than v3.4.0 have no setup-fail2ban and exit 0 from the
-    # usage banner, which would read as success here.
     if ! grep -q '"setup-fail2ban")' /usr/bin/x-ui; then
         echo -e "${yellow}This x-ui.sh predates 'x-ui setup-fail2ban'; skipping Fail2ban auto-setup.${plain}"
         return 0
@@ -270,20 +255,11 @@ setup_fail2ban() {
     return 0
 }
 
-# The hardened unit makes /usr, /boot, /efi and /etc read-only. The panel's own
-# updater is expected to escape that sandbox by running this script through a
-# transient systemd-run unit; when systemd-run is unavailable it starts this
-# script as a plain child instead, and that child inherits the sandbox and then
-# cannot write anything this update needs. Say so once, up front, instead of
-# dying partway through with "Failed to download x-ui".
 require_writable_update_paths() {
     local dir probe
     for dir in "${xui_folder%/*}" "/usr/bin"; do
         [[ -n "$dir" && -d "$dir" ]] || continue
         probe="${dir}/.x-ui-write-test.$$"
-        # A real write test rather than [[ -w ]]: this runs as root, where a
-        # permission bit means little and the test only reflects the file mode
-        # and the mount flags, not an immutable attribute or a full filesystem.
         if ! : > "$probe" 2> /dev/null; then
             _fail "ERROR: ${dir} is not writable for this process (read-only mount, attribute or full filesystem). The panel's fallback updater cannot run inside the hardened systemd sandbox; update from the panel UI (which uses systemd-run) or run 'x-ui update' in a shell."
         fi
@@ -291,11 +267,6 @@ require_writable_update_paths() {
     done
 }
 
-# Major version of the local systemd, 0 when it cannot be determined. The
-# SystemCallFilter=@system-service group only exists from systemd 239 on (other
-# @-named groups exist since 231); on older versions an unknown group is not
-# ignored safely, the filter stays in force and leaves a whitelist the panel
-# cannot run under.
 _xui_systemd_major_version() {
     local version=""
     if command -v systemctl > /dev/null 2>&1; then
@@ -308,12 +279,6 @@ _xui_systemd_major_version() {
     echo "$version"
 }
 
-# The shipped units list hardening that older systemd does not know: the
-# directive is logged and ignored at load time rather than rejected, so the
-# panel still starts, only without that protection. Each entry is the systemd
-# release that introduced the directive (systemd.exec(5)); everything else in
-# the unit predates the oldest systemd install.sh supports (CentOS 7 has 219).
-# SystemCallFilter= is listed because the drop-in only writes it from 239 on.
 _xui_warn_unsupported_hardening() {
     local version entry missing=""
     version="$(_xui_systemd_major_version)"
@@ -336,23 +301,7 @@ _xui_warn_unsupported_hardening() {
     return 0
 }
 
-# ProtectSystem=full makes /usr, /boot, /efi and /etc read-only. ProtectSystem=
-# strict would make the whole hierarchy read-only (only the kernel API
-# filesystems stay as they are), and that would break the panel's own use of
-# /tmp. The panel's stores are configurable (XUI_DB_FOLDER, XUI_LOG_FOLDER,
-# XUI_BIN_FOLDER), and XUI_MAIN_FOLDER is the folder install.sh/update.sh place
-# the files in -- the unit's WorkingDirectory on a stock install, and what a
-# relative XUI_BIN_FOLDER is resolved against. So a hard-coded list in the unit
-# either misses a relocated store -- the panel then cannot write its own SQLite
-# database and sits in a Restart=on-failure loop -- or forces the operator to
-# edit a file that every install/update overwrites from the release tarball.
-# install.sh and update.sh therefore regenerate the drop-in from the folders
-# actually in use, and the unit's own ReadWritePaths only carry the
-# plain-install defaults. A relocated store means re-running install or update:
-# the drop-in is only written here.
 _xui_service_write_paths_dropin() {
-    # $1 is the env file to resolve the XUI_* folders from; callers pass nothing
-    # and get the OS-specific path the unit itself uses.
     local env_file="${1:-}"
     local dropin_dir dropin temp_file
     local db_folder log_folder bin_folder main_folder
@@ -368,14 +317,9 @@ _xui_service_write_paths_dropin() {
         set +a
     fi
 
-    # XUI_* wins over the script's own default: the unit hands that same env
-    # file to the panel through EnvironmentFile=, so these are the folders it
-    # will actually use.
     main_folder="${XUI_MAIN_FOLDER:-${xui_folder}}"
     db_folder="${XUI_DB_FOLDER:-/etc/x-ui}"
     log_folder="${XUI_LOG_FOLDER:-/var/log/x-ui}"
-    # An empty XUI_BIN_FOLDER resolves to "bin" relative to the panel's working
-    # directory, which the unit sets to the main folder.
     bin_folder="${XUI_BIN_FOLDER:-bin}"
     if [[ "$bin_folder" != /* ]]; then
         bin_folder="${main_folder%/}/${bin_folder#./}"
@@ -383,10 +327,6 @@ _xui_service_write_paths_dropin() {
 
     for path in "$db_folder" "$log_folder" "$bin_folder" "$main_folder"; do
         [[ "$path" == /* ]] || continue
-        # ReadWritePaths= is a whitespace-separated list, and a folder whose
-        # name contains whitespace cannot be written into it without relying on
-        # quoting. A wrong entry makes systemd reject the whole drop-in and the
-        # panel would not start, so leave such a folder out and say so instead.
         if [[ "$path" != "${path//[[:space:]]/}" ]]; then
             whitespace_paths="${whitespace_paths:+$whitespace_paths }$path"
             continue
@@ -395,9 +335,6 @@ _xui_service_write_paths_dropin() {
             *" $path "*) continue ;;
         esac
         seen_paths="${seen_paths}${seen_paths:+ }$path"
-        # systemd expands %-specifiers in unit files, so a folder name carrying
-        # a literal % has to be written as %%, or the entry stops naming the
-        # folder systemd is meant to keep writable.
         escaped_path="${path//%/%%}"
         line="${line} -${escaped_path}"
     done
@@ -444,12 +381,6 @@ EOF
     return 0
 }
 
-# Lands a systemd unit file at ${xui_service}/x-ui.service via a temp file +
-# atomic mv, so a failed cp/curl or an interrupted mv never leaves a
-# truncated unit file at the live path -- systemd would then fail to parse
-# it on the next daemon-reload/start. Same pattern already used for
-# /usr/bin/x-ui elsewhere in this script. source_is_url picks cp (from a
-# file already extracted from the release tarball) vs curl (GitHub fallback).
 _install_xui_service_unit() {
     local source="$1"
     local source_is_url="$2"
@@ -483,9 +414,6 @@ _install_xui_service_unit() {
     return 0
 }
 
-# Older tags predate some of these files (x-ui.rc arrived in v2.8.4). Serving
-# main's copy against an old binary is the mismatch this pinning exists to
-# prevent, so probe before the old install is removed and refuse the tag.
 require_repo_files() {
     local ref="$1" name status
     shift
@@ -512,8 +440,6 @@ update_x-ui() {
 
     echo -e "${green}Downloading new x-ui version...${plain}"
 
-    # XUI_UPDATE_TAG lets the panel target a specific release tag (e.g. the
-    # rolling dev-latest pre-release). Empty keeps the default latest-stable flow.
     if [[ -n "${XUI_UPDATE_TAG}" ]]; then
         tag_version="${XUI_UPDATE_TAG}"
         echo -e "${green}Using update tag: ${tag_version}${plain}"
@@ -524,14 +450,10 @@ update_x-ui() {
         fi
     fi
     echo -e "Got x-ui latest version: ${tag_version}, beginning the installation..."
-    # x-ui.sh, x-ui.rc and the unit files must come from the same release as
-    # the binary; only the rolling dev build tracks main.
     script_ref="${tag_version}"
     if [[ "${tag_version}" == "dev-latest" ]]; then
         script_ref="main"
     fi
-    # The unit files are only fetched when the release tarball lacks them, so
-    # they are checked at that point instead of here.
     local required_files=("x-ui.sh")
     [[ $release == "alpine" ]] && required_files+=("x-ui.rc")
     require_repo_files "${script_ref}" "${required_files[@]}"
@@ -543,9 +465,6 @@ update_x-ui() {
         rm ${xui_folder}-linux-$(arch).tar.gz -f > /dev/null 2>&1
         _fail "ERROR: Downloaded x-ui release archive is empty, please be sure that your server can access GitHub"
     fi
-    # Releases publish <asset>.sha256 next to each archive. A mismatch or a
-    # failed sidecar download aborts the update; only a 404 (releases
-    # predating the sidecar) is tolerated with a warning.
     archive="${xui_folder}-linux-$(arch).tar.gz"
     rm -f "${archive}.sha256"
     sidecar_code=$(${curl_bin} -sL --retry 3 --retry-delay 3 --connect-timeout 15 --max-time 60 -o "${archive}.sha256" -w '%{http_code}' "https://github.com/vermiliondevil-web/pure-3x-ui/releases/download/${tag_version}/x-ui-linux-$(arch).tar.gz.sha256" 2> /dev/null)
@@ -590,10 +509,6 @@ update_x-ui() {
                 _fail "ERROR: x-ui systemd unit not installed."
             fi
         fi
-        # Kill any leftover mtg (MTProto) sidecars. x-ui runs them outside its own
-        # lifecycle, so on Linux a stale one can survive the stop and keep holding
-        # an inbound port with an outdated secret, silently breaking new clients.
-        # The new panel respawns a clean mtg per inbound on next start.
         pkill -f 'mtg-linux-[^ ]* run ' > /dev/null 2>&1 || true
         pkill -f 'tuic-server.*-c .*bin/tuic/tuic_[0-9]+\.json' > /dev/null 2>&1 || true
         echo -e "${green}Removing old x-ui version...${plain}"
@@ -607,7 +522,9 @@ update_x-ui() {
         echo -e "${green}Removing old mtg version...${plain}"
         rm ${xui_folder}/bin/mtg-linux-$(arch) -f > /dev/null 2>&1
         echo -e "${green}Removing old xray version...${plain}"
-        rm ${xui_folder}/bin/xray-linux-$(arch) -f > /dev/null 2>&1
+        if [[ ! -f "${xui_folder}/bin/xray-linux-$(arch)" ]]; then
+            rm ${xui_folder}/bin/xray-linux-$(arch) -f > /dev/null 2>&1
+        fi
         echo -e "${green}Removing old README and LICENSE file...${plain}"
         rm ${xui_folder}/bin/README.md -f > /dev/null 2>&1
         rm ${xui_folder}/bin/LICENSE -f > /dev/null 2>&1
@@ -619,10 +536,18 @@ update_x-ui() {
     fi
 
     echo -e "${green}Installing new x-ui version...${plain}"
+    if [[ -f "bin/xray-linux-$(arch)" ]]; then
+        cp "bin/xray-linux-$(arch)" "/tmp/xray-linux-$(arch).saved"
+    fi
     tar zxvf x-ui-linux-$(arch).tar.gz > /dev/null 2>&1
     if [[ $? -ne 0 ]]; then
         rm x-ui-linux-$(arch).tar.gz -f > /dev/null 2>&1
         _fail "ERROR: Failed to extract the x-ui release archive -- the previous installation has already been removed, so the panel will not start until this is fixed; try running the update again"
+    fi
+    if [[ -f "/tmp/xray-linux-$(arch).saved" ]]; then
+        cp "/tmp/xray-linux-$(arch).saved" "bin/xray-linux-$(arch)"
+        chmod +x "bin/xray-linux-$(arch)"
+        rm -f "/tmp/xray-linux-$(arch).saved"
     fi
     rm x-ui-linux-$(arch).tar.gz -f > /dev/null 2>&1
     cd x-ui > /dev/null 2>&1
@@ -631,9 +556,6 @@ update_x-ui() {
     fi
     chmod +x x-ui > /dev/null 2>&1
 
-    # Check the system's architecture and rename the file accordingly.
-    # The panel binary maps GOARCH=arm to "arm32" (internal/xray/process.go),
-    # so the Xray binary must be named xray-linux-arm32; mtg keeps plain "arm".
     if [[ $(arch) == "armv5" || $(arch) == "armv6" || $(arch) == "armv7" ]]; then
         mv bin/xray-linux-$(arch) bin/xray-linux-arm32 > /dev/null 2>&1
         chmod +x bin/xray-linux-arm32 > /dev/null 2>&1
@@ -680,8 +602,6 @@ update_x-ui() {
         chmod 640 ${xui_folder}/bin/config.json > /dev/null 2>&1
     fi
 
-    # Finish the schema/data migrations before the service starts, so the service and
-    # config_after_update's CLI calls never run them on the same database at once (#6728).
     echo -e "${green}Migrating database...${plain}"
     "${xui_folder}/x-ui" migrate
 
@@ -728,79 +648,4 @@ update_x-ui() {
                 arch | manjaro | parch)
                     if [ -f "x-ui.service.arch" ]; then
                         echo -e "${green}Installing arch-like systemd unit...${plain}"
-                        if _install_xui_service_unit "x-ui.service.arch" "false"; then
-                            service_installed=true
-                        fi
-                    fi
-                    ;;
-                *)
-                    if [ -f "x-ui.service.rhel" ]; then
-                        echo -e "${green}Installing rhel-like systemd unit...${plain}"
-                        if _install_xui_service_unit "x-ui.service.rhel" "false"; then
-                            service_installed=true
-                        fi
-                    fi
-                    ;;
-            esac
-
-            # If service file not found in tar.gz, download from GitHub
-            if [ "$service_installed" = false ]; then
-                echo -e "${yellow}Service files not found in tar.gz, downloading from GitHub...${plain}"
-                case "${release}" in
-                    ubuntu | debian | armbian)
-                        service_unit_url="https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/${script_ref}/x-ui.service.debian"
-                        ;;
-                    arch | manjaro | parch)
-                        service_unit_url="https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/${script_ref}/x-ui.service.arch"
-                        ;;
-                    *)
-                        service_unit_url="https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/${script_ref}/x-ui.service.rhel"
-                        ;;
-                esac
-
-                if ! _install_xui_service_unit "$service_unit_url" "true"; then
-                    echo -e "${red}Failed to install x-ui.service from GitHub (${script_ref}) -- the release tarball did not ship one either${plain}"
-                    exit 1
-                fi
-            fi
-        fi
-        chown root:root ${xui_service}/x-ui.service > /dev/null 2>&1
-        chmod 644 ${xui_service}/x-ui.service > /dev/null 2>&1
-        systemctl daemon-reload > /dev/null 2>&1
-        systemctl enable x-ui > /dev/null 2>&1
-        systemctl start x-ui > /dev/null 2>&1
-    fi
-
-    config_after_update
-
-    # IP Limit relies on fail2ban; install + configure it now so the feature
-    # works out of the box on update too (no-op when XUI_ENABLE_FAIL2BAN=false).
-    # Never fatal.
-    setup_fail2ban
-
-    echo -e "${green}x-ui ${tag_version}${plain} updating finished, it is running now..."
-    echo -e ""
-    echo -e "┌───────────────────────────────────────────────────────┐
-│  ${blue}x-ui control menu usages (subcommands):${plain}              │
-│                                                       │
-│  ${blue}x-ui${plain}              - Admin Management Script          │
-│  ${blue}x-ui start${plain}        - Start                            │
-│  ${blue}x-ui stop${plain}         - Stop                             │
-│  ${blue}x-ui restart${plain}      - Restart                          │
-│  ${blue}x-ui status${plain}       - Current Status                   │
-│  ${blue}x-ui settings${plain}     - Current Settings                 │
-│  ${blue}x-ui enable${plain}       - Enable Autostart on OS Startup   │
-│  ${blue}x-ui disable${plain}      - Disable Autostart on OS Startup  │
-│  ${blue}x-ui log${plain}          - Check logs                       │
-│  ${blue}x-ui banlog${plain}       - Check Fail2ban ban logs          │
-│  ${blue}x-ui update${plain}       - Update                           │
-│  ${blue}x-ui legacy${plain}       - Legacy version                   │
-│  ${blue}x-ui install${plain}      - Install                          │
-│  ${blue}x-ui uninstall${plain}    - Uninstall                        │
-└───────────────────────────────────────────────────────┘"
-}
-
-echo -e "${green}Running...${plain}"
-require_writable_update_paths
-install_base
-update_x-ui $1
+                        if _install_xui_service
