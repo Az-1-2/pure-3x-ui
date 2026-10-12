@@ -38,24 +38,6 @@ if [[ -f "$VERSION_FILE" ]]; then
   echo -n "3.9.2" > "$VERSION_FILE"
 fi
 
-# 0.2. update.sh — заменяем на нашу обёртку над install.sh
-cat > update.sh <<'UPDEOF'
-#!/bin/bash
-# pure-3x-ui updater — вызывает install.sh из нашего репозитория.
-
-set -e
-
-REPO="vermiliondevil-web/pure-3x-ui"
-BRANCH="main"
-INSTALL_URL="https://cdn.jsdelivr.net/gh/${REPO}@${BRANCH}/install.sh"
-
-echo "==> pure-3x-ui updater"
-echo "==> Скачиваем install.sh из ${REPO}..."
-
-bash <(curl -Ls "${INSTALL_URL}")
-UPDEOF
-chmod +x update.sh
-
 # ---------- 1. Удаляем файлы рекламы ----------
 echo "[1/5] Удаляем файлы рекламы..."
 rm -rf frontend/src/components/sponsor/ 2>/dev/null || true
