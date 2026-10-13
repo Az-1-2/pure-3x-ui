@@ -401,8 +401,8 @@ strings /usr/local/x-ui/x-ui | grep -c "sponsors.sanaei.dev"
 
 ### Ссылки
 
-- **Оригинал:** https://github.com/vermiliondevil-web/pure-3x-ui
 - **Этот форк:** https://github.com/vermiliondevil-web/pure-3x-ui
+- **Оригинал:** https://github.com/MHSanaei/3x-ui
 - **Текст лицензии:** [LICENSE](LICENSE)
 
 ---
