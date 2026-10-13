@@ -16,7 +16,9 @@ echo "==> remove-ads.sh: старт в $REPO_ROOT"
 # ---------- 0. Брендирование панели: обновления с нашего репозитория ----------
 echo "[0/8] Брендируем панель (ссылки на наш репозиторий)..."
 
-# 0.1. Заменяем MHSanaei/3x-ui → vermiliondevil-web/pure-3x-ui во ВСЕХ файлах.
+# 0.1. Заменяем MHSanaei/3x-ui → vermiliondevil-web/pure-3x-ui в коде панели.
+# README.md НЕ трогаем: там ссылки на upstream (MHSanaei/3x-ui) должны
+# остаться — AGPL требует указания авторства оригинала.
 for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go; do
   if [[ -f "$f" ]]; then
     sed -i 's|MHSanaei/3x-ui|vermiliondevil-web/pure-3x-ui|g' "$f" 2>/dev/null || true
@@ -24,8 +26,11 @@ for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go; do
 done
 
 # 0.2. Заменяем jsDelivr → raw.githubusercontent.com
+# README.md НЕ трогаем по той же причине.
 for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go; do
-  sed -i 's|https://cdn\.jsdelivr\.net/gh/vermiliondevil-web/pure-3x-ui@main/|https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/|g' "$f" 2>/dev/null || true
+  if [[ -f "$f" ]]; then
+    sed -i 's|https://cdn\.jsdelivr\.net/gh/vermiliondevil-web/pure-3x-ui@main/|https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/|g' "$f" 2>/dev/null || true
+  fi
 done
 
 # Fallback для dev-архива больше не нужен.
