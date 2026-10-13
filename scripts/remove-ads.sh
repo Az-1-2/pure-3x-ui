@@ -17,17 +17,15 @@ echo "==> remove-ads.sh: старт в $REPO_ROOT"
 echo "[0/8] Брендируем панель (ссылки на наш репозиторий)..."
 
 # 0.1. Заменяем MHSanaei/3x-ui → vermiliondevil-web/pure-3x-ui во ВСЕХ файлах.
-for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go README.md; do
+for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go; do
   if [[ -f "$f" ]]; then
     sed -i 's|MHSanaei/3x-ui|vermiliondevil-web/pure-3x-ui|g' "$f" 2>/dev/null || true
   fi
 done
 
 # 0.2. Заменяем jsDelivr → raw.githubusercontent.com
-for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go README.md; do
-  if [[ -f "$f" ]]; then
-    sed -i 's|https://cdn\.jsdelivr\.net/gh/vermiliondevil-web/pure-3x-ui@main/|https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/|g' "$f" 2>/dev/null || true
-  fi
+for f in install.sh update.sh x-ui.sh internal/web/service/panel/panel.go; do
+  sed -i 's|https://cdn\.jsdelivr\.net/gh/vermiliondevil-web/pure-3x-ui@main/|https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/|g' "$f" 2>/dev/null || true
 done
 
 # Fallback для dev-архива больше не нужен.
