@@ -5,9 +5,9 @@
 [![Release](https://img.shields.io/github/v/release/vermiliondevil-web/pure-3x-ui?label=release)](https://github.com/vermiliondevil-web/pure-3x-ui/releases/latest)
 [![License](https://img.shields.io/github/license/vermiliondevil-web/pure-3x-ui)](LICENSE)
 
-> **Это форк.** Проект является производной работой от [3x-ui](https://github.com/vermiliondevil-web/pure-3x-ui) (автор — [MHSanaei](https://github.com/MHSanaei)) и распространяется под лицензией **AGPL-3.0**. Все изменения, внесённые в этот форк, публикуются под той же лицензией.
+> **Это форк.** Проект является производной работой от [3x-ui](https://github.com/MHSanaei/3x-ui) (автор — [MHSanaei](https://github.com/MHSanaei)) и распространяется под лицензией **AGPL-3.0**. Все изменения, внесённые в этот форк, публикуются под той же лицензией.
 
-Чистая сборка [3x-ui](https://github.com/vermiliondevil-web/pure-3x-ui) без рекламы и донат-блоков.
+Чистая сборка [3x-ui](https://github.com/MHSanaei/3x-ui) без рекламы и донат-блоков.
 
 ---
 ## Поддержка
@@ -20,7 +20,7 @@
 
 ## О проекте
 
-Это форк панели **3x-ui** от [MHSanaei](https://github.com/vermiliondevil-web/pure-3x-ui). Из файлов upstream автоматически вырезается реклама и спонсорская инфраструктура, а также исправлен баг с перезаписью ядра Xray при обновлении панели.
+Это форк панели **3x-ui** от [MHSanaei](https://github.com/MHSanaei). Из файлов upstream автоматически вырезается реклама и спонсорская инфраструктура, а также исправлен баг с перезаписью ядра Xray при обновлении панели.
 
 ### Удалено из оригинала
 
@@ -183,7 +183,7 @@ CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s" -o x-ui-main mai
 
 **Работает ~17 секунд.** Раз в день (в 03:00 UTC) или вручную:
 
-1. Подтягивает свежий код из [vermiliondevil-web/pure-3x-ui](https://github.com/vermiliondevil-web/pure-3x-ui).
+1. Подтягивает свежий код из [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui).
 2. **Берёт локали и `update.sh` из upstream напрямую** — чтобы избежать конфликтов.
 3. Делает **коммит** этих файлов.
 4. Мержит остальное с `-X theirs`.
@@ -376,10 +376,10 @@ strings /usr/local/x-ui/x-ui | grep -c "sponsors.sanaei.dev"
 
 ### Это форк
 
-`pure-3x-ui` — производная работа (форк) от [3x-ui](https://github.com/vermiliondevil-web/pure-3x-ui).
+`pure-3x-ui` — производная работа (форк) от [3x-ui](https://github.com/MHSanaei/3x-ui).
 
 - Проект **не является** оригинальной разработкой.
-- Основа — код [vermiliondevil-web/pure-3x-ui](https://github.com/vermiliondevil-web/pure-3x-ui).
+- Основа — код [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui).
 - Все изменения — надстройка над оригиналом.
 - Оригинальный автор **не несёт ответственности** за этот форк.
 
