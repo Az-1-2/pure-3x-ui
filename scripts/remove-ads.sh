@@ -207,27 +207,50 @@ with open(p, encoding='utf-8') as f:
 
 out = []
 patched = False
-for line in lines:
+i = 0
+while i < len(lines):
+    line = lines[i]
     if 'tar zxvf x-ui-linux-$(arch).tar.gz' in line and not patched:
         indent = line[:len(line) - len(line.lstrip())]
+        # 1. Сохранение — ПЕРЕД tar
         out.append(f'{indent}# Сохраняем текущее ядро (чтобы архив не перезаписал выбранное)\n')
         out.append(f'{indent}if [[ -f "${{xui_folder}}/bin/xray-linux-$(arch)" ]]; then\n')
         out.append(f'{indent}    cp "${{xui_folder}}/bin/xray-linux-$(arch)" "/tmp/xray-linux-$(arch).saved"\n')
         out.append(f'{indent}fi\n')
+        # 2. Сам tar
         out.append(line)
+        # 3. Пропускаем блок проверки $? — он идёт следом в оригинале:
+        #    if [[ $? -ne 0 ]]; then ... fi
+        #    Находим его и копируем как есть.
+        i += 1
+        # Копируем строки до закрывающего fi проверки $?
+        check_indent = None
+        while i < len(lines):
+            cur = lines[i]
+            out.append(cur)
+            if cur.strip().startswith('if [[ $? -ne 0 ]]; then'):
+                check_indent = cur[:len(cur) - len(cur.lstrip())]
+            if check_indent is not None and cur.strip() == 'fi':
+                # Нашли конец блока проверки $? — выходим
+                i += 1
+                break
+            i += 1
+        # 4. Восстановление — ПОСЛЕ проверки $?
+        out.append(f'{indent}# Восстанавливаем сохранённое ядро (архив мог его перезаписать)\n')
         out.append(f'{indent}if [[ -f "/tmp/xray-linux-$(arch).saved" ]]; then\n')
         out.append(f'{indent}    cp "/tmp/xray-linux-$(arch).saved" "${{xui_folder}}/bin/xray-linux-$(arch)"\n')
         out.append(f'{indent}    chmod +x "${{xui_folder}}/bin/xray-linux-$(arch)"\n')
         out.append(f'{indent}    rm -f "/tmp/xray-linux-$(arch).saved"\n')
         out.append(f'{indent}fi\n')
         patched = True
-    else:
-        out.append(line)
+        continue
+    out.append(line)
+    i += 1
 
 if patched:
     with open(p, 'w', encoding='utf-8') as f:
         f.writelines(out)
-    print("OK: update.sh пропатчен — ядро сохраняется при распаковке")
+    print("OK: update.sh пропатчен — ядро сохраняется при распаковке (правильный порядок)")
 else:
     print("WARN: строка tar zxvf не найдена")
 PYEOF
