@@ -101,7 +101,29 @@ jobs:
           rm -rf .github/claude/
           git add -A
           git diff --cached --quiet || git commit -m "chore: remove upstream CI tests (fork strips sponsor code)"
+      - name: Update upstream changelog
+        run: |
+          VERSION=$(cat internal/config/version 2>/dev/null | tr -d '[:space:]' || echo "")
+          if [[ -z "$VERSION" ]]; then
+            echo "No version file, skipping changelog update"
+            exit 0
+          fi
 
+          TAG="v${VERSION}"
+          DATE=$(date -u +"%Y-%m-%d")
+
+          if grep -q "| ${TAG} |" docs/upstream-changelog.md 2>/dev/null; then
+            echo "Already in changelog: ${TAG}"
+            exit 0
+          fi
+
+          echo "Adding ${TAG} to changelog"
+          {
+            echo "| ${DATE} | ${TAG} | см. upstream release notes | ⏸️ ждём тестирования |"
+          } >> docs/upstream-changelog.md
+
+          git add docs/upstream-changelog.md
+          git diff --cached --quiet || git commit -m "docs: auto-update changelog for ${TAG}"
           
       - name: Push changes
         run: git push origin main
