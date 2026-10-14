@@ -88,6 +88,7 @@
 # /etc/systemd/system/x-ui.service.d/20-local.conf
 [Service]
 ReadWritePaths=/ваш/путь
+```
 
 ## Возможности
 
