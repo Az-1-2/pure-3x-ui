@@ -9,6 +9,8 @@
 
 Чистая сборка [3x-ui](https://github.com/MHSanaei/3x-ui) без рекламы и донат-блоков.
 
+| 2026-10-14 | v3.10.2 | Shadowsocks hot apply, node sync, vmess import, MTProto limit | ❌ пропущено (нишевые фиксы, v3.10.0 работает) |
+
 ---
 ## Поддержка
 
