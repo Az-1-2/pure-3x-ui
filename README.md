@@ -64,31 +64,6 @@
 
 ---
 
-## Известные ограничения
-
-### `install.sh` не сохраняет ядро Xray
-
-Если вы **переустанавливаете** панель через `install.sh` на **живой** системе
-— ядро Xray сбросится на версию из архива. Для **обновления** используйте:
-
-- Кнопку «Обновить» в панели (UI).
-- Команду `x-ui update`.
-
-Эти способы **сохраняют** выбранное ядро (патч `[8/8]` в `update.sh`).
-
-### Sandbox в systemd
-
-С `v3.10.0` панель запускается в sandbox: `/usr, /boot, /etc, /home, /root`
-— read-only, кроме папок панели (`/etc/x-ui`, `/usr/local/x-ui`, `/var/log/x-ui`).
-
-Если вы **изменили** пути панели (`XUI_DB_FOLDER`, `XUI_LOG_FOLDER`), sandbox
-может **блокировать** запись. Решение — свой drop-in:
-
-```bash
-# /etc/systemd/system/x-ui.service.d/20-local.conf
-[Service]
-ReadWritePaths=/ваш/путь
-
 ## Возможности
 
 - Поддержка протоколов: **VLESS, VMess, Trojan, Shadowsocks, WireGuard, TUIC, AmneziaWG** и другие
