@@ -18,6 +18,13 @@
 
 Нишевые фиксы (multi-user Shadowsocks, node sync, MTProto, vmess import) — **пропускаются**, если не используются.
 
+### Текущее состояние
+
+- **Форк:** [Releases](https://github.com/vermiliondevil-web/pure-3x-ui/releases/latest)
+- **Upstream:** [Releases](https://github.com/MHSanaei/3x-ui/releases)
+- **История sync:** [docs/upstream-changelog.md](docs/upstream-changelog.md)
+
+
 ## Отслеживание upstream-релизов
 
 Этот форк **не обновляется** на каждый релиз upstream. Ниже — что выходило, что взято и почему.
@@ -325,11 +332,6 @@ CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s" -o x-ui-main mai
 - Теги `v*` — проверенные релизы для боевого.
 - Боевой не обновляется на каждый релиз upstream.
 
-### Текущее состояние
-
-- **Форк:** [Releases](https://github.com/vermiliondevil-web/pure-3x-ui/releases/latest)
-- **Upstream:** [Releases](https://github.com/MHSanaei/3x-ui/releases)
-- **История sync:** [docs/upstream-changelog.md](docs/upstream-changelog.md)
 
 ### Почему не гонимся за каждым релизом
 
