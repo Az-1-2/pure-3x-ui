@@ -420,13 +420,7 @@ export default function CommandPalette() {
         keywords: ['api', 'api docs', 'swagger', 'rest api', 'endpoints'],
         icon: <ApiOutlined aria-hidden />,
       },
-      {
-        path: '/sponsors',
-        title: t('menu.sponsors'),
-        keywords: ['sponsors', 'sponsor', 'partners'],
-        icon: <CrownOutlined aria-hidden />,
-      },
-    ];
+          ];
 
     pages
       .filter((p) => matches(p.title, undefined, p.keywords))
