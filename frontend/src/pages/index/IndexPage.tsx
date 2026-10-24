@@ -224,7 +224,7 @@ export default function IndexPage() {
 
                   <div className="ov-vitals">
                     <VitalTile
-                      icon={<DashboardOutlined />}
+                      icon={<DashboardOutlined aria-hidden />}
                       label={t('pages.index.cpu')}
                       percent={status.cpu.percent}
                       statusColor={status.cpu.color}
@@ -235,7 +235,7 @@ export default function IndexPage() {
                       isMobile={isMobile}
                     />
                     <VitalTile
-                      icon={<DatabaseOutlined />}
+                      icon={<DatabaseOutlined aria-hidden />}
                       label={t('pages.index.memory')}
                       percent={status.mem.percent}
                       statusColor={status.mem.color}
@@ -246,7 +246,7 @@ export default function IndexPage() {
                       isMobile={isMobile}
                     />
                     <VitalTile
-                      icon={<SwapOutlined />}
+                      icon={<SwapOutlined aria-hidden />}
                       label={t('pages.index.swap')}
                       percent={status.swap.percent}
                       statusColor={status.swap.color}
@@ -257,7 +257,7 @@ export default function IndexPage() {
                       isMobile={isMobile}
                     />
                     <VitalTile
-                      icon={<HddOutlined />}
+                      icon={<HddOutlined aria-hidden />}
                       label={t('pages.index.storage')}
                       percent={status.disk.percent}
                       statusColor={status.disk.color}
@@ -355,7 +355,7 @@ export default function IndexPage() {
                 key="download"
                 onClick={downloadConfig}
                 size={isMobile ? 'small' : 'middle'}
-                icon={<CloudDownloadOutlined />}
+                icon={<CloudDownloadOutlined aria-hidden />}
               >
                 {isMobile ? 'Download' : 'config.json'}
               </Button>,
@@ -364,7 +364,7 @@ export default function IndexPage() {
                 type="primary"
                 onClick={copyConfig}
                 size={isMobile ? 'small' : 'middle'}
-                icon={<CopyOutlined />}
+                icon={<CopyOutlined aria-hidden />}
               >
                 Copy
               </Button>,
