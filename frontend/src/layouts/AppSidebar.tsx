@@ -13,7 +13,6 @@ import {
   DatabaseOutlined,
   DiscordOutlined,
   GithubOutlined,
-  HeartOutlined,
   LogoutOutlined,
   MailOutlined,
   MenuOutlined,
