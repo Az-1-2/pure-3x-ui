@@ -1,3 +1,10 @@
 # LF in every checkout, Windows included: format-check and tests that parse repo
 # files compare bytes, so a CRLF working copy fails them.
 * text=auto eol=lf
+
+# README — всегда наш, upstream его часто меняет (бейджи, фичи).
+# При merge -X theirs upstream-версия затирала бы его — поэтому merge=ours.
+README.md merge=ours
+
+# docs/ — наша документация, upstream её не знает.
+docs/ merge=ours
