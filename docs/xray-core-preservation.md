@@ -35,10 +35,10 @@ Verified 2026-10-12 on production (root@393920):
 
 - Panel: 3.9.21 → 3.9.22 via web UI
 - Xray core before: 26.9.30 (user-selected via UI)
-- Xray core after:  26.9.30 (preserved)
+- Xray core after: 26.9.30 (preserved)
 - stat bin/xray-linux-amd64:
-    Modify: 2026-10-12 21:29:27  (matches update moment)
-    Change: 2026-10-12 21:29:27
+  Modify: 2026-10-12 21:29:27 (matches update moment)
+  Change: 2026-10-12 21:29:27
 
 The Modify timestamp matching the update moment proves the patch
 restored the saved core after tar extraction (otherwise the file
