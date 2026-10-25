@@ -38,6 +38,7 @@ type AllSetting struct {
 	RemarkTemplate             string `json:"remarkTemplate" form:"remarkTemplate"`
 	SubShowIdentityOnAllLinks  bool   `json:"subShowIdentityOnAllLinks" form:"subShowIdentityOnAllLinks"`
 	SubInfoNodeEnable          bool   `json:"subInfoNodeEnable" form:"subInfoNodeEnable"`
+	SubHostSortMode            string `json:"subHostSortMode" form:"subHostSortMode" example:"inbound-first"`
 	SubCalendarExpireInclusive bool   `json:"subCalendarExpireInclusive" form:"subCalendarExpireInclusive"`
 	SubExpiredTemplate         string `json:"subExpiredTemplate" form:"subExpiredTemplate"`
 	SubTrafficDepletedTemplate string `json:"subTrafficDepletedTemplate" form:"subTrafficDepletedTemplate"`
@@ -427,6 +428,8 @@ type HostGroup struct {
 	Port                   int      `json:"port" validate:"gte=0,lte=65535"`
 	Security               string   `json:"security" validate:"omitempty,oneof=same tls none reality"`
 	Sni                    string   `json:"sni"`
+	Snis                   []string `json:"snis"`
+	SniSharedRandom        bool     `json:"sniSharedRandom"`
 	HostHeader             string   `json:"hostHeader"`
 	Path                   string   `json:"path"`
 	Alpn                   []string `json:"alpn"`

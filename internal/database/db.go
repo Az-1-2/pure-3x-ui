@@ -32,6 +32,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
 
@@ -78,6 +79,7 @@ func allModels() []any {
 		&model.ClientGroup{},
 		&model.InboundFallback{},
 		&model.Host{},
+		&model.HostTombstone{},
 		&model.NodeClientTraffic{},
 		&model.NodeClientIp{},
 		&model.ClientGlobalTraffic{},
@@ -112,7 +114,18 @@ func migrateInboundExcludeFromSubColumn() error {
 	return migrator.AddColumn(&model.Inbound{}, "ExcludeFromSub")
 }
 
+func migrateClientKeepAliveRangeColumn() error {
+	migrator := db.Migrator()
+	if !migrator.HasTable(&model.ClientRecord{}) || migrator.HasColumn(&model.ClientRecord{}, "wg_keep_alive_range") {
+		return nil
+	}
+	return migrator.AddColumn(&model.ClientRecord{}, "KeepAliveRange")
+}
+
 func initModels() error {
+	if err := migrateClientKeepAliveRangeColumn(); err != nil {
+		return err
+	}
 	if err := migrateClientTrafficLastSubFetchColumn(); err != nil {
 		return err
 	}
@@ -426,6 +439,17 @@ func migrateHostVerifyPeerCertByNameColumn() error {
 	}
 
 	return db.Exec(`UPDATE hosts SET verify_peer_cert_by_name = '' WHERE verify_peer_cert_by_name IS NULL OR typeof(verify_peer_cert_by_name) <> 'text'`).Error
+}
+
+// mihomo_x25519 was saved but ignored until it began dropping ML-KEM, so rows set
+// back then are cleared once rather than silently changing their subscriptions.
+func resetPreexistingMihomoX25519() error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.Host{}).Where("mihomo_x25519 = ?", true).Update("mihomo_x25519", false).Error; err != nil {
+			return err
+		}
+		return tx.Create(&model.HistoryOfSeeders{SeederName: "HostMihomoX25519Reset"}).Error
+	})
 }
 
 // AutoMigrate casts the boolean-era column to text before the migration above runs,
@@ -851,7 +875,7 @@ func SyncHostsFromExternalProxy(tx *gorm.DB, inboundId int, oldStreamSettings, n
 			continue
 		}
 		if i >= len(added) {
-			if err := tx.Delete(host).Error; err != nil {
+			if _, err := DeleteHosts(tx, "id = ?", host.Id); err != nil {
 				return err
 			}
 			continue
@@ -994,6 +1018,7 @@ func externalProxyEntryToHost(inboundId, index int, ep map[string]any) *model.Ho
 		Port:                 port,
 		Security:             security,
 		Sni:                  sni,
+		Snis:                 anyToNonEmptyStrings([]any{sni}),
 		Fingerprint:          fingerprint,
 		Alpn:                 anyToNonEmptyStrings(ep["alpn"]),
 		PinnedPeerCertSha256: anyToNonEmptyStrings(ep["pinnedPeerCertSha256"]),
@@ -1026,15 +1051,41 @@ func anyToNonEmptyStrings(v any) []string {
 }
 
 func pruneOrphanedHosts() error {
-	res := db.Exec("DELETE FROM hosts WHERE inbound_id NOT IN (SELECT id FROM inbounds)")
-	if res.Error != nil {
-		log.Printf("Error pruning orphaned hosts rows: %v", res.Error)
-		return res.Error
+	var pruned int64
+	err := db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		pruned, err = DeleteHosts(tx, "inbound_id NOT IN (SELECT id FROM inbounds)")
+		return err
+	})
+	if err != nil {
+		log.Printf("Error pruning orphaned hosts rows: %v", err)
+		return err
 	}
-	if res.RowsAffected > 0 {
-		log.Printf("Pruned %d orphaned hosts row(s)", res.RowsAffected)
+	if pruned > 0 {
+		log.Printf("Pruned %d orphaned hosts row(s)", pruned)
 	}
 	return nil
+}
+
+// DeleteHosts deletes the hosts matching query and keeps each one's inbound in host_tombstones, in
+// the caller's transaction, so a client still bound to one fails closed on that inbound alone.
+func DeleteHosts(tx *gorm.DB, query any, args ...any) (int64, error) {
+	var tombstones []model.HostTombstone
+	if err := tx.Model(&model.Host{}).Select("id AS host_id, inbound_id").Where(query, args...).Scan(&tombstones).Error; err != nil {
+		return 0, err
+	}
+	if len(tombstones) == 0 {
+		return 0, nil
+	}
+	// migrate-db resyncs the hosts sequence to MAX(id), so a deleted id can return; keep its latest inbound.
+	if err := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "host_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"inbound_id"}),
+	}).CreateInBatches(&tombstones, 500).Error; err != nil {
+		return 0, err
+	}
+	res := tx.Where(query, args...).Delete(&model.Host{})
+	return res.RowsAffected, res.Error
 }
 
 func pruneOrphanedClientInbounds() error {
@@ -1476,7 +1527,7 @@ func runSeeders(isUsersEmpty bool) error {
 	}
 
 	if empty && isUsersEmpty {
-		seeders := []string{"UserPasswordHash", "ClientsTable", "InboundClientsArrayFix", "InboundClientTgIdFix2", "InboundClientSubIdFix", "FreedomFinalRulesReverseFix", "FreedomFinalRulesPrivateEgressBlock", "UppercaseFreedomFinalRulesFix", "InboundRealityFinalmaskTcpStrip", "ApiTokensHash", "LegacyProxySettingsCleanup", "OutboundRemovedKeysFix", "FreedomDomainStrategyFix", "DNSOutboundLegacyKeysFix", "DNSOutboundQTypeZeroFix", "WireguardDomainStrategyFix", "XdnsFinalmaskNamesAddrsFix", "UDPHopClientMaskFix", "HostVerifyPeerCertByNameBoolFix", "WireguardPeersToClients", "MtprotoSecretsToClients", "NodeInboundsAdopted", "NodeDownNotified", "ResetIpLimitNoFail2ban"}
+		seeders := []string{"UserPasswordHash", "ClientsTable", "InboundClientsArrayFix", "InboundClientTgIdFix2", "InboundClientSubIdFix", "FreedomFinalRulesReverseFix", "FreedomFinalRulesPrivateEgressBlock", "UppercaseFreedomFinalRulesFix", "InboundRealityFinalmaskTcpStrip", "ApiTokensHash", "LegacyProxySettingsCleanup", "OutboundRemovedKeysFix", "FreedomDomainStrategyFix", "DNSOutboundLegacyKeysFix", "DNSOutboundQTypeZeroFix", "WireguardDomainStrategyFix", "XdnsFinalmaskNamesAddrsFix", "UDPHopClientMaskFix", "HostVerifyPeerCertByNameBoolFix", "HostMihomoX25519Reset", "WireguardPeersToClients", "MtprotoSecretsToClients", "NodeInboundsAdopted", "NodeDownNotified", "ResetIpLimitNoFail2ban"}
 		for _, name := range seeders {
 			if err := db.Create(&model.HistoryOfSeeders{SeederName: name}).Error; err != nil {
 				return err
@@ -1631,6 +1682,12 @@ func runSeeders(isUsersEmpty bool) error {
 
 	if !slices.Contains(seedersHistory, "HostVerifyPeerCertByNameBoolFix") {
 		if err := blankLegacyBoolVerifyPeerCertByName(); err != nil {
+			return err
+		}
+	}
+
+	if !slices.Contains(seedersHistory, "HostMihomoX25519Reset") {
+		if err := resetPreexistingMihomoX25519(); err != nil {
 			return err
 		}
 	}

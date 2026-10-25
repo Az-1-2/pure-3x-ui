@@ -1,5 +1,6 @@
 import { Base64, Wireguard } from '@/utils';
 import { effectiveMtu } from '@/lib/xray/amneziawg-obfuscation';
+import { AmneziaWGKeepAliveRangeSchema } from '@/schemas/primitives/keepalive';
 
 import type { Inbound } from '@/schemas/api/inbound';
 import type { AmneziawgInboundSettings } from '@/schemas/protocols/inbound/amneziawg';
@@ -234,6 +235,8 @@ function applyExternalProxyTLSObj(
   }
   if (externalProxy.echConfigList && externalProxy.echConfigList.length > 0)
     obj.ech = externalProxy.echConfigList;
+  if (externalProxy.cipherSuites && externalProxy.cipherSuites.length > 0)
+    obj.cs = externalProxy.cipherSuites;
 }
 
 export interface GenVmessLinkInput {
@@ -336,6 +339,9 @@ export function genVmessLink(input: GenVmessLinkInput): string {
     if (tlsSettings.settings.pinnedPeerCertSha256.length > 0) {
       obj.pcs = tlsSettings.settings.pinnedPeerCertSha256.join(',');
     }
+    if (tlsSettings.cipherSuites && tlsSettings.cipherSuites.length > 0) {
+      obj.cs = tlsSettings.cipherSuites;
+    }
   }
 
   applyExternalProxyTLSObj(externalProxy, obj, tls);
@@ -393,6 +399,8 @@ function applyExternalProxyTLSParams(
   }
   if (externalProxy.echConfigList && externalProxy.echConfigList.length > 0)
     params.set('ech', externalProxy.echConfigList);
+  if (externalProxy.cipherSuites && externalProxy.cipherSuites.length > 0)
+    params.set('cs', externalProxy.cipherSuites);
 }
 
 export interface GenVlessLinkInput {
@@ -495,6 +503,9 @@ export function genVlessLink(input: GenVlessLinkInput): string {
       }
       if (tls.settings.pinnedPeerCertSha256.length > 0) {
         params.set('pcs', tls.settings.pinnedPeerCertSha256.join(','));
+      }
+      if (tls.cipherSuites && tls.cipherSuites.length > 0) {
+        params.set('cs', tls.cipherSuites);
       }
     }
     applyExternalProxyTLSParams(externalProxy, params, security);
@@ -600,6 +611,9 @@ function writeTlsParams(
   }
   if (tls.settings.pinnedPeerCertSha256.length > 0) {
     params.set('pcs', tls.settings.pinnedPeerCertSha256.join(','));
+  }
+  if (tls.cipherSuites && tls.cipherSuites.length > 0) {
+    params.set('cs', tls.cipherSuites);
   }
 }
 
@@ -1127,7 +1141,10 @@ export function genAmneziaWGConfig(input: GenAmneziaWGLinkInput): string {
     lines.push(`PresharedKey = ${client.preSharedKey}`);
   }
   lines.push('AllowedIPs = 0.0.0.0/0, ::/0', `Endpoint = ${address}:${port}`);
-  if (typeof client.keepAlive === 'number' && client.keepAlive > 0) {
+  if (typeof client.keepAlive === 'string') {
+    if (!AmneziaWGKeepAliveRangeSchema.safeParse(client.keepAlive).success) return '';
+    lines.push(`PersistentKeepalive = ${client.keepAlive}`);
+  } else if (typeof client.keepAlive === 'number' && client.keepAlive > 0) {
     lines.push(`PersistentKeepalive = ${client.keepAlive}`);
   }
   return joinConfLines(lines);

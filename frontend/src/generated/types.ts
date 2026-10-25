@@ -108,6 +108,7 @@ export interface AllSetting {
   subHappTunMode: string;
   subHappTunType: string;
   subHideSettings: boolean;
+  subHostSortMode: string;
   subIncyAnnounceUrl: string;
   subIncyAppAutoDetect: boolean;
   subIncyBannerBgColor: string;
@@ -298,6 +299,7 @@ export interface AllSettingView {
   subHappTunMode: string;
   subHappTunType: string;
   subHideSettings: boolean;
+  subHostSortMode: string;
   subIncyAnnounceUrl: string;
   subIncyAppAutoDetect: boolean;
   subIncyBannerBgColor: string;
@@ -411,6 +413,7 @@ export interface Client {
   allowedIPs?: string[];
   allowedIPsByInbound?: Record<number, string[]>;
   auth?: string;
+  clientHostRuleIds?: number[];
   comment: string;
   created_at?: number;
   email: string;
@@ -420,7 +423,7 @@ export interface Client {
   forwardedPorts?: string;
   group?: string;
   id?: string;
-  keepAlive?: number | null;
+  keepAlive?: number | string;
   limitIp: number;
   password?: string;
   preSharedKey?: string;
@@ -462,6 +465,7 @@ export interface ClientRecord {
   adTag: string;
   allowedIPs: string;
   auth: string;
+  clientHostRuleIds?: number[];
   comment: string;
   createdAt: number;
   email: string;
@@ -471,7 +475,7 @@ export interface ClientRecord {
   forwardedPorts: string;
   group: string;
   id: number;
-  keepAlive: number;
+  keepAlive: number | string;
   limitHwid: number;
   limitIp: number;
   password: string;
@@ -654,6 +658,8 @@ export interface Host {
   serverDescription: string;
   shuffleHost: boolean;
   sni: string;
+  sniSharedRandom: boolean;
+  snis?: string[];
   sockoptParams: unknown;
   sortOrder: number;
   tags: string[];
@@ -691,6 +697,8 @@ export interface HostGroup {
   serverDescription: string;
   shuffleHost: boolean;
   sni: string;
+  sniSharedRandom: boolean;
+  snis: string[];
   sockoptParams: string;
   sortOrder: number;
   tags: string[];
@@ -851,6 +859,7 @@ export interface Node {
   status: string;
   tlsVerifyMode: string;
   transitive?: boolean;
+  unavailableMetrics?: string[];
   updatedAt: number;
   uptimeSecs: number;
   xrayError: string;
@@ -914,6 +923,7 @@ export interface NodeView {
   status: string;
   tlsVerifyMode: string;
   transitive?: boolean;
+  unavailableMetrics?: string[];
   updatedAt: number;
   uptimeSecs: number;
   xrayError: string;
@@ -956,6 +966,7 @@ export interface ProbeResultUI {
   memPct: number;
   panelVersion: string;
   status: string;
+  unavailableMetrics?: string[];
   uptimeSecs: number;
   xrayError: string;
   xrayState: string;
@@ -1060,6 +1071,13 @@ export interface SubBalancer {
   sortOrder: number;
   strategy: string;
   updatedAt: number;
+}
+
+export interface TgBotCapabilities {
+  groupPrivacy: boolean;
+  inlineEnabled: boolean;
+  running: boolean;
+  username: string;
 }
 
 export interface Traffic {

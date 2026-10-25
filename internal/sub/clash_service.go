@@ -56,7 +56,9 @@ func (s *SubClashService) getClash(subId string, host string, legacy bool) (stri
 	}
 
 	var proxies []map[string]any
+	var ordered []orderedSubEntry[func() []map[string]any]
 	var hasInactiveExternal bool
+	var hasBoundClosed bool
 	var hasEnabledClient bool
 
 	seenEmails := make(map[string]struct{})
@@ -72,15 +74,44 @@ func (s *SubClashService) getClash(subId string, host string, legacy bool) (stri
 			continue
 		}
 		subReq.projectThroughFallbackMaster(inbound)
-		if hostEps := subReq.hostEndpoints(inbound, "clash"); len(hostEps) > 0 {
-			injectExternalProxy(inbound, hostEps)
+		var baseEps []map[string]any
+		baseStream := inbound.StreamSettings
+		if !subReq.hostsFirst {
+			if baseEps = subReq.hostEndpoints(inbound, "clash"); len(baseEps) > 0 {
+				injectExternalProxy(inbound, baseEps)
+			}
 		}
 		for _, client := range clients {
 			if client.Enable {
 				hasEnabledClient = true
 			}
 			seenEmails[client.Email] = struct{}{}
-			proxies = append(proxies, s.getProxies(subReq, inbound, client, host)...)
+			if subReq.hostsFirst {
+				variants, closed := subReq.clientHostVariants(inbound, client, "clash")
+				hasBoundClosed = hasBoundClosed || closed
+				for _, variant := range variants {
+					render := func() []map[string]any { return s.getProxies(subReq, variant.inbound(subReq, inbound), client, host) }
+					ordered = append(ordered, orderedSubEntry[func() []map[string]any]{variant.order, render})
+				}
+				continue
+			}
+			effective := inbound
+			if effectiveEps, bound := subReq.clientHostEndpoints(inbound, client, "clash", baseEps); bound {
+				if len(effectiveEps) == 0 {
+					hasBoundClosed = true
+					continue
+				}
+				clone := *inbound
+				clone.StreamSettings = baseStream
+				injectExternalProxy(&clone, effectiveEps)
+				effective = &clone
+			}
+			proxies = append(proxies, s.getProxies(subReq, effective, client, host)...)
+		}
+	}
+	if subReq.hostsFirst {
+		for _, render := range orderedSubValues(ordered) {
+			proxies = append(proxies, render()...)
 		}
 	}
 	for _, ext := range externalLinks {
@@ -105,7 +136,7 @@ func (s *SubClashService) getClash(subId string, host string, legacy bool) (stri
 		}
 	}
 
-	if len(proxies) == 0 && !hasInactiveExternal {
+	if len(proxies) == 0 && !hasInactiveExternal && !hasBoundClosed {
 		return "", "", nil
 	}
 	if legacy {
@@ -229,6 +260,10 @@ func legacyClashProxy(proxy map[string]any) map[string]any {
 		tls, _ := proxy["tls"].(bool)
 		cipher = legacyShadowsocksCipher(proxy["cipher"])
 		if (network != "" && network != "tcp") || tls || cipher == "" {
+			return nil
+		}
+		// Legacy endpoints directly block obfs nodes.
+		if plugin, _ := proxy["plugin"].(string); plugin == "obfs" {
 			return nil
 		}
 		fields = []string{"name", "type", "server", "port", "password", "cipher", "udp", "plugin", "plugin-opts"}
@@ -397,6 +432,13 @@ func (s *SubClashService) getProxies(subReq *SubService, inbound *model.Inbound,
 			if v, _ := extPrxy["mihomoIpVersion"].(string); v != "" {
 				proxy["ip-version"] = v
 			}
+			// A pre-26.9.8 core accepts a plain X25519 hello, which some DPI lets
+			// through where it drops the two-segment ML-KEM one.
+			if hostX25519Only(extPrxy) {
+				if opts, ok := proxy["reality-opts"].(map[string]any); ok {
+					opts["support-x25519mlkem768"] = false
+				}
+			}
 			proxies = append(proxies, proxy)
 		}
 	}
@@ -426,9 +468,6 @@ func (s *SubClashService) buildProxy(subReq *SubService, inbound *model.Inbound,
 		"server": inbound.Listen,
 		"port":   inbound.Port,
 		"udp":    true,
-	}
-	if !s.applyTransport(proxy, network, stream) {
-		return nil
 	}
 
 	switch inbound.Protocol {
@@ -469,6 +508,10 @@ func (s *SubClashService) buildProxy(subReq *SubService, inbound *model.Inbound,
 			}
 		}
 	default:
+		return nil
+	}
+
+	if !s.applyTransport(proxy, network, stream) {
 		return nil
 	}
 
@@ -645,7 +688,7 @@ func (s *SubClashService) buildWireguardProxy(subReq *SubService, inbound *model
 	if client.PreSharedKey != "" {
 		proxy["pre-shared-key"] = client.PreSharedKey
 	}
-	if ka := client.KeepAliveSeconds(); ka > 0 {
+	if ka, ok := keepAliveForScalarExport(client); ok {
 		proxy["persistent-keepalive"] = ka
 	}
 	for _, addr := range client.AllowedIPs {
@@ -787,7 +830,7 @@ func (s *SubClashService) buildAmneziaWGProxy(subReq *SubService, inbound *model
 	if client.PreSharedKey != "" {
 		proxy["pre-shared-key"] = client.PreSharedKey
 	}
-	if ka := client.KeepAliveSeconds(); ka > 0 {
+	if ka, ok := keepAliveForScalarExport(client); ok {
 		proxy["persistent-keepalive"] = ka
 	}
 
@@ -1067,6 +1110,19 @@ func (s *SubClashService) applyTransport(proxy map[string]any, network string, s
 			if header != nil {
 				typeStr, _ := header["type"].(string)
 				if typeStr != "" && typeStr != "none" {
+					// Mihomo's simple-obfs always sends GET /, and xray-core rejects a request whose
+					// path is not one of the header's paths, so only a "/" header maps to obfs.
+					if proxy["type"] == "ss" && typeStr == "http" && tcpHeaderAcceptsRootPath(header) {
+						proxy["plugin"] = "obfs"
+						opts := map[string]any{
+							"mode": "http",
+						}
+						if host := extractTCPHeaderHost(header); host != "" {
+							opts["host"] = host
+						}
+						proxy["plugin-opts"] = opts
+						return true
+					}
 					return false
 				}
 			}
@@ -1140,6 +1196,50 @@ func (s *SubClashService) applyTransport(proxy map[string]any, network string, s
 	default:
 		return false
 	}
+}
+
+// tcpHeaderAcceptsRootPath reports whether the inbound's HTTP header accepts "/"; xray-core
+// defaults an absent request path to "/".
+func tcpHeaderAcceptsRootPath(header map[string]any) bool {
+	request, _ := header["request"].(map[string]any)
+	paths, _ := request["path"].([]any)
+	if len(paths) == 0 {
+		return true
+	}
+	for _, p := range paths {
+		if p == "/" {
+			return true
+		}
+	}
+	return false
+}
+
+func extractTCPHeaderHost(header map[string]any) string {
+	request, _ := header["request"].(map[string]any)
+	reqHeaders, _ := request["headers"].(map[string]any)
+	return findHostInHeaders(reqHeaders)
+}
+
+func findHostInHeaders(headers map[string]any) string {
+	for k, v := range headers {
+		if strings.EqualFold(k, "host") {
+			switch val := v.(type) {
+			case string:
+				return strings.TrimSpace(val)
+			case []string:
+				if len(val) > 0 {
+					return strings.TrimSpace(val[0])
+				}
+			case []any:
+				if len(val) > 0 {
+					if h, ok := val[0].(string); ok {
+						return strings.TrimSpace(h)
+					}
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func (s *SubClashService) applySecurity(proxy map[string]any, security string, stream map[string]any) bool {

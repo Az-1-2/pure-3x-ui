@@ -77,6 +77,13 @@ type SubService struct {
 	// with the clients array left out; generators read only inbound-level
 	// fields (encryption, method, version, …) from it.
 	settingsByInbound map[int]map[string]any
+	// settingsCache is shared by this service's requests (ForRequest copies the pointer); only
+	// subscription bodies read through it, never panel link rendering.
+	settingsCache   *inboundSettingsCache
+	hostsByInbound  map[int][]*model.Host
+	hostGroupOrders map[string]hostEntryOrder
+	hostsFirst      bool
+	sharedGroupSni  map[string]string
 }
 
 // NewSubService creates a new subscription service with the given configuration.
@@ -84,6 +91,13 @@ func NewSubService(remarkTemplate string) *SubService {
 	return &SubService{
 		remarkTemplate: remarkTemplate,
 	}
+}
+
+// enableSettingsCache gives the subscription server's service its inbound settings cache, purged
+// on every panel mutation; release unhooks it when the server stops.
+func (s *SubService) enableSettingsCache() (release func()) {
+	s.settingsCache = newInboundSettingsCache(settingsCacheTTL)
+	return service.RegisterSubDataInvalidator(s.settingsCache.purgeAll)
 }
 
 // ForRequest returns a shallow copy with request-scoped state populated.
@@ -112,6 +126,11 @@ func (s *SubService) PrepareForRequest(host string) {
 	s.clientsByInbound = map[int]map[string]model.Client{}
 	s.fullyPrimedInbounds = map[int]bool{}
 	s.settingsByInbound = map[int]map[string]any{}
+	s.hostsByInbound = nil
+	s.hostGroupOrders = nil
+	s.sharedGroupSni = nil
+	mode, _ := s.settingService.GetSubHostSortMode()
+	s.hostsFirst = mode == "hosts-first"
 	s.loadNodes()
 	s.loadRemarkSettings()
 	s.subCalendarExpireInclusive, _ = s.settingService.GetSubCalendarExpireInclusive()
@@ -464,6 +483,7 @@ func (s *SubService) resolveInfoNodeRemark(subId string, uniqueEmails []string, 
 
 func (s *SubService) getSubs(subId string) ([]string, []string, int64, xray.ClientTraffic, error) {
 	var result []string
+	var ordered []orderedSubEntry[func() string]
 	var emails []string
 	var traffic xray.ClientTraffic
 	var hasEnabledClient bool
@@ -495,20 +515,51 @@ func (s *SubService) getSubs(subId string) ([]string, []string, int64, xray.Clie
 		s.projectThroughFallbackMaster(inbound)
 		// Host overrides apply AFTER fallback projection so a host's
 		// address/TLS wins over the projected master stream.
-		hostEps := s.hostEndpoints(inbound, "raw")
+		var hostEps []map[string]any
+		if !s.hostsFirst {
+			hostEps = s.hostEndpoints(inbound, "raw")
+		}
 		for _, client := range clients {
 			if client.Enable {
 				hasEnabledClient = true
 			}
 			var link string
-			if len(hostEps) > 0 {
-				link = s.linkFromHosts(inbound, client, hostEps)
+			if s.hostsFirst {
+				variants, closed := s.clientHostVariants(inbound, client, "raw")
+				if closed {
+					seenEmails[client.Email] = struct{}{}
+					continue
+				}
+				for _, variant := range variants {
+					render := func() string {
+						if variant.host != nil {
+							return s.linkFromHosts(inbound, client, variant.endpoint(s, inbound))
+						}
+						return s.GetLink(inbound, client.Email)
+					}
+					ordered = append(ordered, orderedSubEntry[func() string]{variant.order, render})
+				}
+			} else if effectiveEps, bound := s.clientHostEndpoints(inbound, client, "raw", hostEps); bound && len(effectiveEps) == 0 {
+				seenEmails[client.Email] = struct{}{}
+				continue
+			} else if len(effectiveEps) > 0 {
+				link = s.linkFromHosts(inbound, client, effectiveEps)
+				if link == "" {
+					link = s.GetLink(inbound, client.Email)
+				}
 			} else {
 				link = s.GetLink(inbound, client.Email)
 			}
-			result = append(result, link)
+			if !s.hostsFirst {
+				result = append(result, link)
+			}
 			emails = append(emails, client.Email)
 			seenEmails[client.Email] = struct{}{}
+		}
+	}
+	if s.hostsFirst {
+		for _, render := range orderedSubValues(ordered) {
+			result = append(result, render())
 		}
 	}
 	for _, ext := range externalLinks {
@@ -573,9 +624,16 @@ func (s *SubService) inboundLinks(inbound *model.Inbound) []string {
 			continue
 		}
 		seen[key] = struct{}{}
+		effectiveEps, bound := s.clientHostEndpoints(inbound, client, "raw", hostEps)
+		if bound && len(effectiveEps) == 0 {
+			continue
+		}
 		var link string
-		if len(hostEps) > 0 {
-			link = s.linkFromHosts(inbound, client, hostEps)
+		if len(effectiveEps) > 0 {
+			link = s.linkFromHosts(inbound, client, effectiveEps)
+			if link == "" {
+				link = s.GetLink(inbound, client.Email)
+			}
 		} else {
 			link = s.GetLink(inbound, client.Email)
 		}
@@ -677,10 +735,22 @@ func subscriptionExpiryFromClient(nowMs, expiryTime int64) int64 {
 	return 0
 }
 
+// getInboundsBySubId loads the subscriber's inbounds; hosts are read per request, never cached.
 func (s *SubService) getInboundsBySubId(subId string) ([]*model.Inbound, error) {
+	inbounds, err := s.loadInboundsBySubId(subId)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.loadSubscriptionHosts(inbounds); err != nil {
+		return nil, err
+	}
+	return inbounds, nil
+}
+
+func (s *SubService) loadInboundsBySubId(subId string) ([]*model.Inbound, error) {
 	db := database.GetDB()
-	var inbounds []*model.Inbound
-	err := db.Model(model.Inbound{}).Where(`id in (
+	cached := s.settingsCache != nil && s.subscriptionBody
+	query := db.Model(model.Inbound{}).Where(`id in (
 		SELECT DISTINCT inbounds.id
 		FROM inbounds
 		JOIN client_inbounds ON client_inbounds.inbound_id = inbounds.id
@@ -688,12 +758,39 @@ func (s *SubService) getInboundsBySubId(subId string) ([]*model.Inbound, error) 
 		WHERE
 			inbounds.protocol in ('vmess','vless','trojan','shadowsocks','hysteria','wireguard','amneziawg','mtproto','tuic','masque')
 			AND clients.sub_id = ? AND inbounds.enable = ?
-	)`, subId, true).Order("sub_sort_index ASC").Order("id ASC").Find(&inbounds).Error
-	if err != nil {
+	)`, subId, true).Order("sub_sort_index ASC").Order("id ASC")
+	if cached {
+		query = query.Omit("settings")
+	}
+	var inbounds []*model.Inbound
+	if err := query.Find(&inbounds).Error; err != nil {
 		return nil, err
+	}
+	if cached {
+		for _, inbound := range inbounds {
+			settings, err := s.subscriptionSettings(inbound)
+			if err != nil {
+				return nil, err
+			}
+			inbound.Settings = settings
+		}
 	}
 	s.indexStatsBySubId(subId)
 	return inbounds, nil
+}
+
+// subscriptionSettings is an inbound's settings for a subscription body: WireGuard and AmneziaWG
+// keep their peers, every other protocol gets the shared copy without the clients array.
+func (s *SubService) subscriptionSettings(inbound *model.Inbound) (string, error) {
+	load := func() (string, error) {
+		var settings string
+		err := database.GetDB().Model(&model.Inbound{}).Select("settings").Where("id = ?", inbound.Id).Row().Scan(&settings)
+		return settings, err
+	}
+	if inbound.Protocol == model.WireGuard || inbound.Protocol == model.AmneziaWG {
+		return load()
+	}
+	return s.settingsCache.settingsFor(inbound.Id, load)
 }
 
 // indexStatsBySubId loads the traffic rows for just this subscriber's clients
@@ -1057,8 +1154,11 @@ func amneziaWGConfigText(server *amneziawg.ServerSettings, client *model.Client,
 		lines = append(lines, "PresharedKey = "+client.PreSharedKey)
 	}
 	lines = append(lines, "AllowedIPs = 0.0.0.0/0, ::/0", fmt.Sprintf("Endpoint = %s:%d", host, port))
-	if ka := client.KeepAliveSeconds(); ka > 0 {
-		lines = append(lines, fmt.Sprintf("PersistentKeepalive = %d", ka))
+	if client.KeepAlive != nil {
+		keepAlive := client.KeepAliveText()
+		if (strings.Contains(keepAlive, "-") && client.KeepAlive.Validate(true) == nil) || client.KeepAlive.Seconds() > 0 {
+			lines = append(lines, "PersistentKeepalive = "+keepAlive)
+		}
 	}
 
 	// A control character would split its line, and the split can re-open
@@ -1864,6 +1964,11 @@ func applyShareTLSParams(stream map[string]any, params map[string]string) {
 		if pins, ok := pinnedSha256List(tlsSettings); ok {
 			params["pcs"] = strings.Join(pins, ",")
 		}
+		if csValue, ok := searchKey(tlsSetting, "cipherSuites"); ok {
+			if cs, _ := csValue.(string); cs != "" {
+				params["cs"] = cs
+			}
+		}
 	}
 }
 
@@ -1898,6 +2003,11 @@ func applyVmessTLSParams(stream map[string]any, obj map[string]any) {
 		}
 		if pins, ok := pinnedSha256List(tlsSettings); ok {
 			obj["pcs"] = strings.Join(pins, ",")
+		}
+		if csValue, ok := searchKey(tlsSetting, "cipherSuites"); ok {
+			if cs, _ := csValue.(string); cs != "" {
+				obj["cs"] = cs
+			}
 		}
 	}
 }
@@ -2045,7 +2155,7 @@ func buildVmessLink(obj map[string]any) string {
 func cloneVmessShareObj(baseObj map[string]any, newSecurity string) map[string]any {
 	newObj := map[string]any{}
 	for key, value := range baseObj {
-		if newSecurity != "none" || (key != "alpn" && key != "sni" && key != "fp" && key != "pcs") {
+		if newSecurity != "none" || (key != "alpn" && key != "sni" && key != "fp" && key != "pcs" && key != "cs") {
 			newObj[key] = value
 		}
 	}
@@ -2074,6 +2184,9 @@ func applyExternalProxyTLSObj(ep map[string]any, obj map[string]any, security st
 	if ech, ok := ep["echConfigList"].(string); ok && ech != "" {
 		obj["ech"] = ech
 	}
+	if cs, ok := externalProxyCipherSuites(ep); ok {
+		obj["cs"] = cs
+	}
 }
 
 func applyExternalProxyTLSParams(ep map[string]any, params map[string]string, security string) {
@@ -2098,6 +2211,9 @@ func applyExternalProxyTLSParams(ep map[string]any, params map[string]string, se
 	if ech, ok := ep["echConfigList"].(string); ok && ech != "" {
 		params["ech"] = ech
 	}
+	if cs, ok := externalProxyCipherSuites(ep); ok {
+		params["cs"] = cs
+	}
 }
 
 // applyExternalProxyHysteriaParams overrides the cert pin for a single
@@ -2121,22 +2237,36 @@ func applyExternalProxyHysteriaParams(ep map[string]any, params map[string]strin
 	}
 }
 
-// cloneStreamForExternalProxy returns a shallow clone of stream with
-// tlsSettings (and its nested settings map) deep-copied. The external
-// proxy loop mutates tlsSettings per iteration, so without isolating
-// those maps each proxy's SNI/fingerprint/ALPN would leak into the next.
+// cloneStreamForExternalProxy deep-copies stream: every endpoint overrides nested
+// maps in place, so a shared map leaks one host's SNI/fp/host/path into the next.
 func cloneStreamForExternalProxy(stream map[string]any) map[string]any {
-	out := cloneMap(stream)
-	ts, ok := out["tlsSettings"].(map[string]any)
-	if !ok || ts == nil {
-		return out
-	}
-	clonedTs := cloneMap(ts)
-	if inner, ok := clonedTs["settings"].(map[string]any); ok && inner != nil {
-		clonedTs["settings"] = cloneMap(inner)
-	}
-	out["tlsSettings"] = clonedTs
+	out, _ := deepCopyJSONValue(stream).(map[string]any)
 	return out
+}
+
+func deepCopyJSONValue(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		if val == nil {
+			return val
+		}
+		out := make(map[string]any, len(val))
+		for k, item := range val {
+			out[k] = deepCopyJSONValue(item)
+		}
+		return out
+	case []any:
+		if val == nil {
+			return val
+		}
+		out := make([]any, len(val))
+		for i, item := range val {
+			out[i] = deepCopyJSONValue(item)
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 func applyExternalProxyTLSToStream(ep map[string]any, stream map[string]any, security string) {
@@ -2192,6 +2322,13 @@ func applyExternalProxyTLSToStream(ep map[string]any, stream map[string]any, sec
 		}
 		settings["allowInsecure"] = true
 	}
+}
+
+func externalProxyCipherSuites(ep map[string]any) (string, bool) {
+	if cs, ok := ep["cipherSuites"].(string); ok && cs != "" {
+		return cs, true
+	}
+	return "", false
 }
 
 func externalProxySNI(ep map[string]any) (string, bool) {
@@ -2340,7 +2477,7 @@ func appendQueryAndFragment(link string, params map[string]string, fragment, sec
 			if securityOverride != "" && k == "security" {
 				v = securityOverride
 			}
-			if omitTLSFields && (k == "alpn" || k == "sni" || k == "fp" || k == "pcs") {
+			if omitTLSFields && (k == "alpn" || k == "sni" || k == "fp" || k == "pcs" || k == "cs") {
 				continue
 			}
 			q.Set(k, v)

@@ -5,23 +5,18 @@ import { useTranslation } from 'react-i18next';
 import { Drawer, Layout, Menu, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
 import {
-  ApiOutlined,
   ApartmentOutlined,
   CloseOutlined,
   CloudServerOutlined,
   ClusterOutlined,
   CodeOutlined,
-  DashboardOutlined,
   DatabaseOutlined,
   DiscordOutlined,
-  ExportOutlined,
   GithubOutlined,
-  GlobalOutlined,
-  ImportOutlined,
+  HeartOutlined,
   LogoutOutlined,
   MailOutlined,
   MenuOutlined,
-  MessageOutlined,
   MoonFilled,
   MoonOutlined,
   PushpinFilled,
@@ -30,10 +25,7 @@ import {
   SearchOutlined,
   SettingOutlined,
   SunOutlined,
-  SwapOutlined,
-  TagsOutlined,
-  TeamOutlined,
-  ToolOutlined,
+  TelegramFilled,
 } from '@ant-design/icons';
 
 import { HttpUtil } from '@/utils';
@@ -41,6 +33,7 @@ import { formatPanelVersion } from '@/lib/panel-version';
 import { pauseAnimationsUntilLeave, useTheme } from '@/hooks/useTheme';
 import { useAllSettings } from '@/api/queries/useAllSettings';
 import { useCommandPalette } from '@/components/command-palette/useCommandPalette';
+import { PANEL_ROUTES } from '@/routes/panelRoutes';
 import './AppSidebar.css';
 
 // The palette listens for Ctrl as well as Cmd, so the chip must not show a
@@ -53,35 +46,6 @@ const SIDER_WIDTH = 220;
 const SIDEBAR_PINNED_KEY = 'sidebar-pinned';
 
 let hoveredAcrossRemounts = false;
-
-type IconName =
-  | 'dashboard'
-  | 'inbound'
-  | 'team'
-  | 'groups'
-  | 'setting'
-  | 'tool'
-  | 'cluster'
-  | 'hosts'
-  | 'logout'
-  | 'apidocs'
-  | 'outbound'
-  | 'routing';
-
-const iconByName: Record<IconName, ComponentType> = {
-  dashboard: DashboardOutlined,
-  inbound: ImportOutlined,
-  team: TeamOutlined,
-  groups: TagsOutlined,
-  setting: SettingOutlined,
-  tool: ToolOutlined,
-  cluster: ClusterOutlined,
-  hosts: GlobalOutlined,
-  logout: LogoutOutlined,
-  apidocs: ApiOutlined,
-  outbound: ExportOutlined,
-  routing: SwapOutlined,
-};
 
 function DonateButton({ ariaLabel }: { ariaLabel: string }) {
   return (
@@ -221,26 +185,20 @@ export default function AppSidebar() {
   const currentTheme: 'light' | 'dark' = isDark ? 'dark' : 'light';
   const panelVersion = window.X_UI_CUR_VER || '';
 
-  const tabs = useMemo<{ key: string; icon: IconName; title: string }[]>(
+  const tabs = useMemo<{ key: string; icon: ComponentType; title: string }[]>(
     () => [
-      { key: '/', icon: 'dashboard', title: t('menu.dashboard') },
-      { key: '/inbounds', icon: 'inbound', title: t('menu.inbounds') },
-      { key: '/clients', icon: 'team', title: t('menu.clients') },
-      { key: '/groups', icon: 'groups', title: t('menu.groups') },
-      { key: '/nodes', icon: 'cluster', title: t('menu.nodes') },
-      { key: '/hosts', icon: 'hosts', title: t('menu.hosts') },
-      { key: '/outbound', icon: 'outbound', title: t('menu.outbounds') },
-      { key: '/routing', icon: 'routing', title: t('menu.routing') },
-      { key: '/settings', icon: 'setting', title: t('menu.settings') },
-      { key: '/xray', icon: 'tool', title: t('menu.xray') },
-      { key: '/api-docs', icon: 'apidocs', title: t('menu.apiDocs') },
-      { key: LOGOUT_KEY, icon: 'logout', title: t('logout') },
+      ...PANEL_ROUTES.map((route) => ({
+        key: route.path,
+        icon: route.icon,
+        title: t(route.titleKey),
+      })),
+      { key: LOGOUT_KEY, icon: LogoutOutlined, title: t('logout') },
     ],
     [t],
   );
 
-  const navItems = useMemo(() => tabs.filter((tab) => tab.icon !== 'logout'), [tabs]);
-  const utilItems = useMemo(() => tabs.filter((tab) => tab.icon === 'logout'), [tabs]);
+  const navItems = useMemo(() => tabs.filter((tab) => tab.key !== LOGOUT_KEY), [tabs]);
+  const utilItems = useMemo(() => tabs.filter((tab) => tab.key === LOGOUT_KEY), [tabs]);
 
   const settingsChildren = useMemo<NonNullable<MenuProps['items']>>(() => {
     const children: NonNullable<MenuProps['items']> = [
@@ -256,7 +214,7 @@ export default function AppSidebar() {
       },
       {
         key: '/settings#telegram',
-        icon: <MessageOutlined aria-hidden />,
+        icon: <TelegramFilled aria-hidden />,
         label: t('pages.settings.TGBotSettings'),
       },
       {
@@ -333,14 +291,24 @@ export default function AppSidebar() {
   const toMenuItems = useCallback(
     (items: typeof tabs): MenuProps['items'] =>
       items.map((tab) => {
-        const Icon = iconByName[tab.icon];
+        const Icon = tab.icon;
         if (tab.key === '/settings') {
-          return { key: tab.key, icon: <Icon />, label: tab.title, children: settingsChildren };
+          return {
+            key: tab.key,
+            icon: <Icon aria-hidden />,
+            label: tab.title,
+            children: settingsChildren,
+          };
         }
         if (tab.key === '/xray') {
-          return { key: tab.key, icon: <Icon />, label: tab.title, children: xrayChildren };
+          return {
+            key: tab.key,
+            icon: <Icon aria-hidden />,
+            label: tab.title,
+            children: xrayChildren,
+          };
         }
-        return { key: tab.key, icon: <Icon />, label: tab.title, title: '' };
+        return { key: tab.key, icon: <Icon aria-hidden />, label: tab.title, title: '' };
       }),
     [settingsChildren, xrayChildren],
   );
