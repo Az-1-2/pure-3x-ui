@@ -36,7 +36,8 @@ export default function HappSettingsContent({
 
   const applyPreset = () => {
     if (selectedPreset === 'russia-bypass') {
-      const ruPayload = "happ://routing/rules?direct=regexp:\\.ru$,regexp:\\.su$,regexp:\\.rf$,geoip:private&proxy=geosite:category-vpn-out,geosite:google,geosite:meta";
+      const ruPayload =
+        'happ://routing/rules?direct=regexp:\\.ru$,regexp:\\.su$,regexp:\\.rf$,geoip:private&proxy=geosite:category-vpn-out,geosite:google,geosite:meta';
       updateSetting({ subRoutingRules: ruPayload });
       messageApi.success('Пресет обхода блокировок РФ/СНГ успешно применен');
       return;
