@@ -13,5 +13,5 @@ sync, если upstream выпустил новый релиз (изменилс
 | Дата       | Upstream-релиз | Что в нём                                          | Статус                 |
 | ---------- | -------------- | -------------------------------------------------- | ---------------------- |
 | 2026-10-13 | v3.10.0        | MASQUE, WARP modal, Xray 26.10.10, systemd sandbox | ✅ протестировано      |
-| 2026-10-15 | v3.10.2        | см. upstream release notes                         | ❌ отклонено, пропущен |
+| 2026-10-15 | v3.10.2        | Shadowsocks hot apply, node sync load, vmess import, MTProto limit, sponsor SNI fix, Windows 3x-ui.exe, core crash reports, не используются, спонсоры вырезаны, Windows не актуален, crash reports не критичны                        | ❌ отклонено, пропущен |
 | 2026-10-26 | v3.11.0        | Xray 26.10.21, AmneziaWG kernel, привязка host к клиентам, пул SNI, CIDR, новый TG-бот, фиксы безопасности (admin/admin, WireGuard .conf, X-Forwarded-For)                         | ❌ отклонено, пропущен |
