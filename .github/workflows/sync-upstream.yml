@@ -116,13 +116,6 @@ jobs:
           git add docs/upstream-changelog.md
           git diff --cached --quiet || git commit -m "style(docs): format upstream-changelog.md"
           
-          DATE=$(date -u +"%Y-%m-%d")
-
-          if grep -q "| ${TAG} |" docs/upstream-changelog.md 2>/dev/null; then
-            echo "Already in changelog: ${TAG}"
-            exit 0
-          fi
-
           echo "Adding ${TAG} to changelog"
           {
             echo "| ${DATE} | ${TAG} | см. upstream release notes | ⏸️ ждём тестирования |"
