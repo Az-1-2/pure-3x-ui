@@ -108,6 +108,13 @@ jobs:
             echo "No version file, skipping changelog update"
             exit 0
           fi
+      - name: Format changelog after update
+        run: |
+          cd docs
+          pnpm exec oxfmt upstream-changelog.md 2>/dev/null || true
+          cd ..
+          git add docs/upstream-changelog.md
+          git diff --cached --quiet || git commit -m "style(docs): format upstream-changelog.md"
 
           TAG="v${VERSION}"
           DATE=$(date -u +"%Y-%m-%d")
