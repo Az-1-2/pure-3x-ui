@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgkern"
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
@@ -20,13 +21,8 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/xray"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
-
-// IPWithTimestamp tracks an IP address with its last seen timestamp
-type IPWithTimestamp struct {
-	IP        string `json:"ip"`
-	Timestamp int64  `json:"timestamp"`
-}
 
 // onlineUsersSource is the one service.XrayService method the scan needs, so
 // tests can drive Run end to end without a live xray core.
@@ -60,7 +56,25 @@ func NewCheckClientIpJob() *CheckClientIpJob {
 func (j *CheckClientIpJob) Run() {
 	j.pruneStaleIpRows()
 	observed, apiMode := j.collectFromOnlineAPI()
-	if !apiMode {
+	// Kernel-mode AmneziaWG peers never reach Xray, so its online users cannot
+	// see them; their connect locations come from the kernel interface instead.
+	kernelIPs := amneziawgkern.GetCollector().ClientIPs()
+	if len(kernelIPs) > 0 {
+		if observed == nil {
+			observed = make(map[string]map[string]int64, len(kernelIPs))
+		}
+		for email, ips := range kernelIPs {
+			if _, ok := observed[email]; !ok {
+				observed[email] = make(map[string]int64, len(ips))
+			}
+			for ip, ts := range ips {
+				if prev, seen := observed[email][ip]; !seen || ts > prev {
+					observed[email][ip] = ts
+				}
+			}
+		}
+	}
+	if !apiMode && len(kernelIPs) == 0 {
 		// xray is down or predates the online-stats API. There is no access-log
 		// fallback anymore, so there is nothing to do this run.
 		logger.Debug("[LimitIP] online-stats API unavailable this run; skipping")
@@ -333,14 +347,12 @@ func (j *CheckClientIpJob) processObserved(observed map[string]map[string]int64,
 			}
 		}
 
-		// Convert to IPWithTimestamp slice
-		ipsWithTime := make([]IPWithTimestamp, 0, len(ipTimestamps))
+		ipsWithTime := make([]model.ClientIpEntry, 0, len(ipTimestamps))
 		attrEntries := make([]model.ClientIpEntry, 0, len(ipTimestamps))
 		for ip, timestamp := range ipTimestamps {
-			ipsWithTime = append(ipsWithTime, IPWithTimestamp{IP: ip, Timestamp: timestamp})
-			// Live API observations may carry an old lastSeen (connection start),
-			// so stamp attribution with now; otherwise the stale cutoff would evict
-			// an IP that is connected right now.
+			ipsWithTime = append(ipsWithTime, model.ClientIpEntry{IP: ip, Timestamp: timestamp})
+			// A live connection's lastSeen may be its old start time.
+			// Stamp attribution now so retention cannot evict a connected IP.
 			attrTs := timestamp
 			if observedAreLive {
 				attrTs = now
@@ -353,15 +365,27 @@ func (j *CheckClientIpJob) processObserved(observed map[string]map[string]int64,
 
 		clientIpsRecord, ok := ipRowByEmail[email]
 		if !ok {
-			jsonIps, err := json.Marshal(ipsWithTime)
+			jsonIps, err := model.MarshalClientIpEntries(ipsWithTime)
 			if err != nil {
 				j.checkError(err)
 				continue
 			}
-			if err := tx.Save(&model.InboundClientIps{ClientEmail: email, Ips: string(jsonIps)}).Error; err != nil {
-				j.checkError(err)
+			clientIpsRecord = &model.InboundClientIps{ClientEmail: email, Ips: jsonIps}
+			result := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "client_email"}},
+				DoNothing: true,
+			}).Create(clientIpsRecord)
+			if result.Error != nil {
+				j.checkError(result.Error)
+				continue
 			}
-			continue
+			if result.RowsAffected > 0 {
+				continue
+			}
+			if err := tx.Where("client_email = ?", email).First(clientIpsRecord).Error; err != nil {
+				j.checkError(err)
+				continue
+			}
 		}
 
 		candidates, keptLive := j.updateInboundClientIps(tx, clientIpsRecord, inbound, email, limitByEmail[email], ipsWithTime, enforce, observedAreLive)
@@ -410,11 +434,9 @@ func (j *CheckClientIpJob) recordLocalAttribution(attribution map[string][]model
 	}
 }
 
-// mergeClientIps folds this scan's observations into the persisted set,
-// dropping entries older than staleCutoff. newAlwaysLive exempts the new
-// entries from that cutoff: an API-observed IP is a live connection by
-// definition, even when its lastSeen (set at dispatch time) is hours old.
-func mergeClientIps(old, new []IPWithTimestamp, staleCutoff int64, newAlwaysLive bool) map[string]int64 {
+// mergeClientIps retains fresh entries and exempts currently observed live
+// connections from expiry even when their dispatch timestamps are old.
+func mergeClientIps(old, new []model.ClientIpEntry, staleCutoff int64, newAlwaysLive bool) map[string]int64 {
 	ipMap := make(map[string]int64, len(old)+len(new))
 	for _, ipTime := range old {
 		if ipTime.Timestamp < staleCutoff {
@@ -435,7 +457,7 @@ func mergeClientIps(old, new []IPWithTimestamp, staleCutoff int64, newAlwaysLive
 
 // selectIpsToBan splits the live IPs (sorted oldest-first by partitionLiveIps)
 // into the newest `limit` entries to keep and the older remainder to ban.
-func selectIpsToBan(live []IPWithTimestamp, limit int) (kept, banned []IPWithTimestamp) {
+func selectIpsToBan(live []model.ClientIpEntry, limit int) (kept, banned []model.ClientIpEntry) {
 	if limit <= 0 || len(live) <= limit {
 		return live, nil
 	}
@@ -443,33 +465,21 @@ func selectIpsToBan(live []IPWithTimestamp, limit int) (kept, banned []IPWithTim
 	return live[cutoff:], live[:cutoff]
 }
 
-func partitionLiveIps(ipMap map[string]int64, observedThisScan map[string]bool) (live, historical []IPWithTimestamp) {
-	live = make([]IPWithTimestamp, 0, len(observedThisScan))
-	historical = make([]IPWithTimestamp, 0, len(ipMap))
+func partitionLiveIps(ipMap map[string]int64, observedThisScan map[string]bool) (live, historical []model.ClientIpEntry) {
+	live = make([]model.ClientIpEntry, 0, len(observedThisScan))
+	historical = make([]model.ClientIpEntry, 0, len(ipMap))
 	now := time.Now().Unix()
 	for ip, ts := range ipMap {
-		entry := IPWithTimestamp{IP: ip, Timestamp: ts}
-		// Consider an IP "live" if it was seen locally in this scan, OR if its
-		// timestamp from the synced database is very recent (e.g. within 2 minutes).
-		// This ensures cluster-wide limits work even if the IP was seen on another node.
+		entry := model.ClientIpEntry{IP: ip, Timestamp: ts}
+		// Recent remote observations count toward the cluster-wide limit.
 		if observedThisScan[ip] || now-ts < 120 {
 			live = append(live, entry)
 		} else {
 			historical = append(historical, entry)
 		}
 	}
-	sort.Slice(live, func(i, j int) bool {
-		if live[i].Timestamp != live[j].Timestamp {
-			return live[i].Timestamp < live[j].Timestamp
-		}
-		return live[i].IP < live[j].IP
-	})
-	sort.Slice(historical, func(i, j int) bool {
-		if historical[i].Timestamp != historical[j].Timestamp {
-			return historical[i].Timestamp < historical[j].Timestamp
-		}
-		return historical[i].IP < historical[j].IP
-	})
+	model.SortClientIpEntries(live)
+	model.SortClientIpEntries(historical)
 	return live, historical
 }
 
@@ -504,10 +514,8 @@ func (j *CheckClientIpJob) delInboundClientIps(tx *gorm.DB, clientEmail string) 
 	}
 }
 
-// updateInboundClientIps merges one email's observed IPs into its tracking row
-// and applies the IP limit. Ban candidates are returned, not written: the
-// fail2ban log is the point of no return and must wait for the commit.
-func (j *CheckClientIpJob) updateInboundClientIps(tx *gorm.DB, inboundClientIps *model.InboundClientIps, inbound *model.Inbound, clientEmail string, limitIp int, newIpsWithTime []IPWithTimestamp, enforce, observedAreLive bool) (banCandidates []IPWithTimestamp, keptLiveCount int) {
+// updateInboundClientIps returns ban candidates; publication must wait for commit.
+func (j *CheckClientIpJob) updateInboundClientIps(tx *gorm.DB, inboundClientIps *model.InboundClientIps, inbound *model.Inbound, clientEmail string, limitIp int, newIpsWithTime []model.ClientIpEntry, enforce, observedAreLive bool) (banCandidates []model.ClientIpEntry, keptLiveCount int) {
 	if inbound.Settings == "" {
 		logger.Debug("wrong data:", inbound)
 		return nil, 0
@@ -526,14 +534,14 @@ func (j *CheckClientIpJob) updateInboundClientIps(tx *gorm.DB, inboundClientIps 
 	// Node sync merges into the same blob (#6587): compare-and-set it, and on a
 	// miss re-read and re-merge so neither writer drops the other's IPs.
 	for range service.ClientIpCasRetries {
-		var oldIpsWithTime []IPWithTimestamp
+		var oldIpsWithTime []model.ClientIpEntry
 		if inboundClientIps.Ips != "" {
 			_ = json.Unmarshal([]byte(inboundClientIps.Ips), &oldIpsWithTime)
 		}
 		ipMap := mergeClientIps(oldIpsWithTime, newIpsWithTime, staleCutoff, observedAreLive)
 
-		dbIps := make([]IPWithTimestamp, 0, len(ipMap))
-		var bannedLive []IPWithTimestamp
+		dbIps := make([]model.ClientIpEntry, 0, len(ipMap))
+		var bannedLive []model.ClientIpEntry
 		keptLive := 0
 		if enforceLimit {
 			liveIps, historicalIps := partitionLiveIps(ipMap, observedThisScan)
@@ -550,12 +558,16 @@ func (j *CheckClientIpJob) updateInboundClientIps(tx *gorm.DB, inboundClientIps 
 			dbIps = append(dbIps, kept...)
 			dbIps = append(dbIps, historicalIps...)
 		} else {
-			// Collection-only run (#6722): no ban selection; keep every IP in
-			// the 30-minute window, sorted so unchanged scans skip the write.
-			dbIps = sortedIpsFromMap(ipMap)
+			// Collection-only run (#6722): no ban selection, keep every IP in the window.
+			for ip, timestamp := range ipMap {
+				dbIps = append(dbIps, model.ClientIpEntry{IP: ip, Timestamp: timestamp})
+			}
 		}
-		jsonIps, _ := json.Marshal(dbIps)
-		newIps := string(jsonIps)
+		newIps, err := model.MarshalClientIpEntries(dbIps)
+		if err != nil {
+			j.checkError(err)
+			return nil, 0
+		}
 		if newIps == inboundClientIps.Ips {
 			return bannedLive, keptLive
 		}
@@ -578,28 +590,12 @@ func (j *CheckClientIpJob) updateInboundClientIps(tx *gorm.DB, inboundClientIps 
 	return nil, 0
 }
 
-// sortedIpsFromMap orders the merged IP set by timestamp with the IP as
-// tie-breaker, giving a stable blob for the skip-when-unchanged compare.
-func sortedIpsFromMap(ipMap map[string]int64) []IPWithTimestamp {
-	out := make([]IPWithTimestamp, 0, len(ipMap))
-	for ip, ts := range ipMap {
-		out = append(out, IPWithTimestamp{IP: ip, Timestamp: ts})
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Timestamp != out[j].Timestamp {
-			return out[i].Timestamp < out[j].Timestamp
-		}
-		return out[i].IP < out[j].IP
-	})
-	return out
-}
-
 // pendingBan carries one client's enforcement outcome from inside the scan's
 // transaction to the publication that may only follow a successful commit.
 type pendingBan struct {
 	inbound    *model.Inbound
 	email      string
-	candidates []IPWithTimestamp
+	candidates []model.ClientIpEntry
 	keptLive   int
 }
 
@@ -643,7 +639,7 @@ func (j *CheckClientIpJob) publishBans(bans []pendingBan) []pendingBan {
 
 // writeBanLines emits one line per address; the wording is load-bearing, since
 // x-ui.sh create_iplimit_jails builds filter.d/3x-ipl.conf failregex from it.
-func writeBanLines(w io.Writer, clientEmail string, actionable []IPWithTimestamp) error {
+func writeBanLines(w io.Writer, clientEmail string, actionable []model.ClientIpEntry) error {
 	stamp := time.Now().Format("2006/01/02 15:04:05")
 	for _, ipTime := range actionable {
 		if _, err := fmt.Fprintf(w, "%s [LIMIT_IP] Email = %s || Disconnecting OLD IP = %s || Timestamp = %d\n",
@@ -656,8 +652,8 @@ func writeBanLines(w io.Writer, clientEmail string, actionable []IPWithTimestamp
 
 // selectAdvancedSinceLastBan drops pairs with a frozen lastSeen: the core
 // refreshes it only on a new dispatch, so those are unreaped dead connections.
-func (j *CheckClientIpJob) selectAdvancedSinceLastBan(email string, banned []IPWithTimestamp) []IPWithTimestamp {
-	actionable := make([]IPWithTimestamp, 0, len(banned))
+func (j *CheckClientIpJob) selectAdvancedSinceLastBan(email string, banned []model.ClientIpEntry) []model.ClientIpEntry {
+	actionable := make([]model.ClientIpEntry, 0, len(banned))
 	for _, ipTime := range banned {
 		if last, ok := j.bannedSeen[email+"|"+ipTime.IP]; ok && ipTime.Timestamp <= last {
 			continue
@@ -669,7 +665,7 @@ func (j *CheckClientIpJob) selectAdvancedSinceLastBan(email string, banned []IPW
 
 // recordBannedSeen marks published pairs and forgets addresses this scan no
 // longer bans; it runs for every enforced client, which is what prunes the map.
-func (j *CheckClientIpJob) recordBannedSeen(email string, banned, published []IPWithTimestamp) {
+func (j *CheckClientIpJob) recordBannedSeen(email string, banned, published []model.ClientIpEntry) {
 	if j.bannedSeen == nil {
 		j.bannedSeen = make(map[string]int64)
 	}
