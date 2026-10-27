@@ -16,6 +16,8 @@
     // inside JSX components (Steps/Callout). Author MDX by hand.
     "content/**/*.mdx",
     // Generated API reference pages (fumadocs-openapi output).
-    "content/docs/**/reference/api"
+    "content/docs/**/reference/api",
+    // Our fork's sync journal — updated by CI bot, format not stable.
+    "upstream-changelog.md"
   ]
 }
