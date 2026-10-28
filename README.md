@@ -690,6 +690,7 @@ strings /usr/local/x-ui/x-ui | grep -c "sponsors.sanaei.dev"
 - [MHSanaei](https://github.com/MHSanaei) — за оригинальный 3x-ui
 - [XTLS/Xray-core](https://github.com/XTLS/Xray-core) — за ядро Xray
 - [Acme.sh](https://github.com/acmesh-official/acme.sh) — за SSL-сертификаты
+- [@Az-1-2](https://github.com/Az-1-2) — за идею очистки `SponsorsPage` из `panelRoutes.tsx` (блок `4.1b` в `remove-ads.sh`).
 - Всем контрибьюторам оригинального проекта
 
 ---
