@@ -134,6 +134,32 @@ open(p, 'w', encoding='utf-8').write(s)
 PYEOF
 fi
 
+# 4.1b panelRoutes.tsx — remove the SponsorsPage import and route
+PRT=frontend/src/routes/panelRoutes.tsx
+if [[ -f "$PRT" ]]; then
+  python3 - "$PRT" <<'PYEOF'
+import re, sys
+
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+
+s = re.sub(
+    r"^[ \t]*import[^\n]*\bSponsorsPage\b[^\n]*\n",
+    "",
+    s,
+    flags=re.MULTILINE,
+)
+s = re.sub(
+    r"^[ \t]*\{[^\n]*\bSponsorsPage\b[^\n]*\}[ \t]*,?[ \t]*\n",
+    "",
+    s,
+    flags=re.MULTILINE,
+)
+
+open(p, "w", encoding="utf-8").write(s)
+PYEOF
+fi
+
 # 4.2 usePageTitle.ts
 UPT=frontend/src/hooks/usePageTitle.ts
 if [[ -f "$UPT" ]]; then
