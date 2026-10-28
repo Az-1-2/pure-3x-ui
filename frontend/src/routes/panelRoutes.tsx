@@ -3,7 +3,6 @@ import type { ComponentType } from 'react';
 import {
   ApiOutlined,
   ClusterOutlined,
-  CrownOutlined,
   DashboardOutlined,
   ExportOutlined,
   GlobalOutlined,
