@@ -144,11 +144,12 @@ p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
 
 s = re.sub(
-    r"^[ \t]*import[^\n]*\bSponsorsPage\b[^\n]*\n",
+    r"^[ \t]*const\s+SponsorsPage\s*=\s*lazy\([^\n]*\n",
     "",
     s,
     flags=re.MULTILINE,
 )
+
 s = re.sub(
     r"^[ \t]*\{[^\n]*\bSponsorsPage\b[^\n]*\}[ \t]*,?[ \t]*\n",
     "",
