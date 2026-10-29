@@ -237,13 +237,14 @@ Run as **root**:
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/install.sh)
 ### Alternative methods
-
+```
 ```bash
 # 1. Via github.com/raw (redirects to raw.githubusercontent)
 bash <(curl -Ls "https://github.com/vermiliondevil-web/pure-3x-ui/raw/main/install.sh")
 
 # 2. With a specific tag (stable release)
 bash <(curl -Ls https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/v3.9.22/install.sh)
+```
 ### What the script does
 
 1. Detects the OS and architecture.
@@ -270,6 +271,7 @@ x-ui banlog       # Fail2ban ban logs
 x-ui update       # Update
 x-ui install      # Install
 x-ui uninstall    # Uninstall
+```
 ## Update
 
 ### Via the UI ("Update" button)
@@ -286,6 +288,8 @@ The panel **checks** the latest release on GitHub via `api.github.com/repos/verm
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/install.sh)
 **Important:** updating the panel does **not** overwrite the installed Xray core — the version you selected via Settings → Xray Updates is preserved. Details — [docs/xray-core-preservation.md](docs/xray-core-preservation.md).
+```
+
 ## Building from source
 
 ```bash
@@ -295,6 +299,7 @@ npm install
 npm run build
 cd ..
 CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s" -o x-ui-main main.go
+```
 ## Automation
 
 The repository has **two GitHub Actions workflows**:
@@ -311,6 +316,7 @@ The repository has **two GitHub Actions workflows**:
 6. Commits the changes and pushes to `main`.
 
 **This means:** when Sanaei releases an update, ads are stripped **automatically**, and there are **no conflicts**.
+
 ### 2. `Build and Release` — build and publish releases
 
 Triggered by a `v*` tag or manually:
@@ -322,6 +328,7 @@ Triggered by a `v*` tag or manually:
 5. Downloads the Xray core from XTLS.
 6. Packages everything into `x-ui-linux-amd64.tar.gz` + `.sha256`.
 7. Publishes the release.
+
 ### How to publish a new version
 
 1. **Create a tag** with the new number:
@@ -331,6 +338,7 @@ Triggered by a `v*` tag or manually:
    git pull
    git tag v3.9.23
    git push origin v3.9.23
+```
 2. **GitHub Actions** builds release `v3.9.23` automatically.
 
 3. The **"Update" button** becomes active.
@@ -370,6 +378,7 @@ This fork **does not chase** every upstream release. Code is pulled automaticall
 - Fresh releases **may contain bugs** — fixes come in v3.10.1, v3.10.2.
 - **systemd sandbox** (v3.10.0) is a major change and may conflict with custom configurations.
 - **Production needs stability**, not freshness.
+
 ## Code review before release
 
 This fork is **not** a simple copy of upstream. Every release is checked for personal data leaks, telemetry, and hidden network requests.
@@ -384,6 +393,7 @@ The original 3x-ui is developed by a **community of 310+ contributors**. Any PR 
 - New dependencies with unknown behavior.
 
 **The upstream author does not check every PR** for privacy. His priority is functionality and monetization.
+
 ### What is checked in this fork
 
 | What is checked | How |
@@ -401,7 +411,7 @@ grep -rn "sponsors.sanaei.dev" internal/ frontend/src/ 2>/dev/null
 
 # 2. Check the binary for suspicious domains
 strings /usr/local/x-ui/x-ui | grep -iE "sponsor|sanaei|telemetry" | head
-
+```
 # 3. Monitor outbound connections
 tcpdump -i any -n 'not host localhost' -c 20
 ### What this means for the user
@@ -439,7 +449,9 @@ On every login page load, the panel sent a request to `sponsors.sanaei.dev` — 
 
 ```bash
 strings /usr/local/x-ui/x-ui | grep -c "sponsors.sanaei.dev"
+```
 # Expected: 0
+
 ### Other security measures (inherited)
 
 - **Per-client IP limiting** with fail2ban integration.
