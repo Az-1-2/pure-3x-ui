@@ -291,8 +291,9 @@ The panel **checks** the latest release on GitHub via `api.github.com/repos/verm
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/install.sh)
-**Important:** updating the panel does **not** overwrite the installed Xray core — the version you selected via Settings → Xray Updates is preserved. Details — [docs/xray-core-preservation.md](docs/xray-core-preservation.md).
 ```
+**Important:** updating the panel does **not** overwrite the installed Xray core — the version you selected via Settings → Xray Updates is preserved. Details — [docs/xray-core-preservation.md](docs/xray-core-preservation.md).
+
 
 ## Building from source
 
