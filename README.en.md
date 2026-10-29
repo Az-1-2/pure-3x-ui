@@ -338,7 +338,7 @@ Triggered by a `v*` tag or manually:
    git pull
    git tag v3.9.23
    git push origin v3.9.23
-```
+   ```
 2. **GitHub Actions** builds release `v3.9.23` automatically.
 
 3. The **"Update" button** becomes active.
@@ -366,6 +366,7 @@ This fork **does not chase** every upstream release. Code is pulled automaticall
 3. **No fork release is published** — `main` updates, but no `v*` tag is created.
 4. **When enough changes accumulate** — manual testing on a separate VPS begins.
 5. **After a successful test** — a tag is created, `Build and Release` builds the release, production is updated.
+
 ### What this means
 
 - `main` is fresh upstream code with our patches, but **not a release**.
