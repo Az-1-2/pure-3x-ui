@@ -18,7 +18,7 @@ A proxy management panel is **infrastructure**. Its code runs on servers that pe
 
 1. **Review every PR for security.** Do not merge code that adds network calls without explaining why. Do not merge code that contacts domains unique to the panel. Do not merge code that writes files outside the panel's directories.
 
-2. 2. **Require signed commits.** The xz/liblzma (Jia Tan) scenario is not theory. It is reality. If a contributor cannot sign a commit, that is grounds for additional review — not for "let's trust them".
+2. **Require signed commits.** The xz/liblzma (Jia Tan) scenario is not theory. It is reality. If a contributor cannot sign a commit, that is grounds for additional review — not for "let's trust them".
 
 3. **Respond to security issues.** If the community opens an Issue saying the panel creates an identifying SNI — that is not "not planned". It is a **task**. If the community asks for an opt-out for sponsor tracking — that is not "we don't want to". It is a **security requirement**.
 
