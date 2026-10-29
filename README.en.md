@@ -8,6 +8,7 @@
 > **This is a fork.** The project is a derivative work of [3x-ui](https://github.com/MHSanaei/3x-ui) (author — [MHSanaei](https://github.com/MHSanaei)) and is distributed under the **AGPL-3.0** license. All changes made in this fork are published under the same license.
 
 A clean build of [3x-ui](https://github.com/MHSanaei/3x-ui) without ads or donation blocks.
+
 **A CALL TO UPSTREAM COMMITTERS AND CONTRIBUTORS**
 
 **This section is not a complaint. It is a demand on the development process.**
