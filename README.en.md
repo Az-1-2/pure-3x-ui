@@ -50,12 +50,14 @@ Niche fixes (multi-user Shadowsocks, node sync, MTProto, vmess import) are **ski
 ## Policy on sponsor commits
 
 This fork **deliberately removes** upstream's sponsor infrastructure: `sponsor.go`, `SponsorSlot`, `SponsorsPage`, `useSponsorsQuery`, donation buttons, the `/sponsors` endpoint. The reason is privacy: upstream code contacts `sponsors.sanaei.dev` on every login page load (when the cache expires), exposing the server IP and SNI to a third party with no way to disable it. For operators in censored countries, this lets DPI identify the panel as 3x-ui.
+
 **What this means for upstream commits:**
 
 - Sponsor commits (new slots, new endpoints, changes to `sponsor.go` or the sponsor frontend components) are **not accepted in this fork as-is**. They are **reworked** via `scripts/remove-ads.sh`: sponsor code is stripped, `sponsor.go` is replaced with a stub, endpoints are removed.
-- - This is **not** hostility toward upstream. The [3x-ui](https://github.com/MHSanaei/3x-ui) project is an excellent panel, and we are grateful to the author and contributors. But this fork exists **specifically** to remove sponsor tracking. If upstream adds new sponsor features, the fork will strip them, not inherit them.
+- This is **not** hostility toward upstream. The [3x-ui](https://github.com/MHSanaei/3x-ui) project is an excellent panel, and we are grateful to the author and contributors. But this fork exists **specifically** to remove sponsor tracking. If upstream adds new sponsor features, the fork will strip them, not inherit them.
 - If you want your sponsor feature to **stay** in the panel — use [upstream](https://github.com/MHSanaei/3x-ui). It works there as intended. **Here — NO! AND IT NEVER WILL!**
-- **How it works technically:**
+
+**How it works technically:**
 
 After every `Sync Upstream`, `scripts/remove-ads.sh` runs and:
 
@@ -94,7 +96,7 @@ In June 2026, users **directly asked** the upstream author to: audit PRs, verify
 We **do not call for** a boycott of upstream. The 3x-ui project is an important tool, and we are grateful to the author for the code. But we believe that:
 
 1. **Security negligence is not a "development style".** When a censorship-circumvention panel creates an identifying SNI, writes arbitrary files, and does not verify node signatures — these are **architectural errors**, not "features".
-2. 2. **The community must influence contributors.** If you use upstream and see a problem — open an Issue, demand review, propose signed commits. Silence equals consent.
+2. **The community must influence contributors.** If you use upstream and see a problem — open an Issue, demand review, propose signed commits. Silence equals consent.
 
 3. **Forks are not a "split", but insurance.** When upstream does not respond to security issues, forks (like this one) take on the role of "strip out what is dangerous and document why".
 4. **We call on panel operators:**
@@ -112,6 +114,7 @@ This fork **does not update** on every upstream release. Below is what came out,
 |------|----------|--------------|----------|
 | 2026-10-10 | v3.10.0 | MASQUE, WARP modal, Xray 26.10.10, systemd sandbox | ✅ taken (prod + test) |
 | 2026-10-13 | v3.10.2 | Shadowsocks hot apply, node sync load, vmess import, MTProto limit, sponsor SNI fix, Windows 3x-ui.exe | ❌ skipped |
+
 ### Why v3.10.2 was skipped
 
 - **Shadowsocks hot apply** — only for multi-user Shadowsocks. Not used.
