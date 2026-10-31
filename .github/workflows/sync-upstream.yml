@@ -85,7 +85,7 @@ jobs:
           # Не позволяем upstream перезаписывать наши workflows.
           # release.yml содержит x-ui-main и purge jsDelivr cache —
           # upstream-версия с xui-release ломает сборку.
-          for f in 
+          for f in \
             .github/workflows/release.yml \
             .github/workflows/docker.yml; do
             git checkout origin/main -- "$f" 2>/dev/null || true
