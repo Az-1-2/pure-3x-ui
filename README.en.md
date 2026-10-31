@@ -240,8 +240,9 @@ Run as **root**:
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/vermiliondevil-web/pure-3x-ui/main/install.sh)
-### Alternative methods
 ```
+### Alternative methods
+
 ```bash
 # 1. Via github.com/raw (redirects to raw.githubusercontent)
 bash <(curl -Ls "https://github.com/vermiliondevil-web/pure-3x-ui/raw/main/install.sh")
@@ -287,6 +288,7 @@ The panel **checks** the latest release on GitHub via `api.github.com/repos/verm
 | `3.9.21` | `v3.9.21` | ❌ inactive |
 | `3.9.21` | `v3.9.22` | ✅ active |
 | `3.9.22` | `v3.9.22` | ❌ inactive |
+
 ### Via `install.sh`
 
 ```bash
@@ -417,9 +419,10 @@ grep -rn "sponsors.sanaei.dev" internal/ frontend/src/ 2>/dev/null
 
 # 2. Check the binary for suspicious domains
 strings /usr/local/x-ui/x-ui | grep -iE "sponsor|sanaei|telemetry" | head
-```
+
 # 3. Monitor outbound connections
 tcpdump -i any -n 'not host localhost' -c 20
+```
 ### What this means for the user
 
 - ✅ **Relevant updates** — pulled via `Sync Upstream`.
